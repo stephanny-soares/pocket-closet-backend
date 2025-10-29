@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module'; // <--- importar UsersModule
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../users/entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { LoggerModule } from 'src/common/logger/logger.module';
 
 
