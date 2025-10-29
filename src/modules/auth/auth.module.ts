@@ -5,13 +5,15 @@ import { UsersModule } from '../users/users.module'; // <--- importar UsersModul
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { LoggerModule } from 'src/common/logger/logger.module';
+import { AuditoriaUsuariosModule } from '../auditoria-usuarios/auditoria-usuarios.module';
 
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     UsersModule, // <--- importante para inyectar repositorio.
-    LoggerModule
+    LoggerModule,
+    AuditoriaUsuariosModule,
   ],
 
   providers: [AuthService],

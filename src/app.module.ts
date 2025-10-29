@@ -5,7 +5,7 @@ import { AppController } from './app.controller';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
-import { LoggerService } from './common/logger/logger.service';
+import { LoggerModule } from './common/logger/logger.module';  // usae el módulo en lugar del provider directo
 
 
 @Module({
@@ -21,11 +21,12 @@ import { LoggerService } from './common/logger/logger.service';
       autoLoadEntities: true,
       synchronize: true, // crea las tablas automáticamente según entidades (solo para desarrollo, no usar en producción).
     }),
+    LoggerModule, // ✅ se importa el módulo global
     UsersModule,
     AuthModule, // 👈 ESTE IMPORT ES CLAVE
   ],
   controllers: [AppController],
-  providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros
+  //providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros
 })
 export class AppModule implements NestModule {
    configure(consumer: MiddlewareConsumer) {

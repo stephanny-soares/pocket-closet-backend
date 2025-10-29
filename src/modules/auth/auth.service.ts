@@ -7,6 +7,8 @@ import * as jwt from 'jsonwebtoken';
 import { CreateUserDto } from './dto/create-user.dto';
 import { validarEmail, validarNombre, validarPassword } from '../../common/validators/general-validators';
 import { LoggerService } from 'src/common/logger/logger.service';
+import { AuditoriaUsuariosService } from '../auditoria-usuarios/auditoria-usuarios.service';
+
 
 @Injectable()
 export class AuthService {
@@ -14,9 +16,11 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly logger: LoggerService,
+    private readonly auditoriaUsuariosService: AuditoriaUsuariosService, 
   ) {}
 
-  async register(createUserDto: CreateUserDto) {
+  // Recibimos correlationId desde el controller
+  async register(createUserDto: CreateUserDto, correlationId?: string) {
     const { name, email, password } = createUserDto;
 
     // Validaciones
@@ -26,6 +30,7 @@ export class AuthService {
         event: 'DatosInvalidos',
         message: 'Intento de registro con datos inválidos',
         email,
+        correlationId,
       });
       throw new BadRequestException('Datos inválidos');
     }
@@ -36,6 +41,7 @@ export class AuthService {
       this.logger.warn({
         event: 'EmailDuplicado',
         message: `Email ya registrado: ${email}`,
+        correlationId,
       });
       throw new ConflictException('Email ya registrado');
     }
@@ -45,10 +51,22 @@ export class AuthService {
     const user = this.userRepository.create({ name, email, password_hash });
     const savedUser = await this.userRepository.save(user);
 
+    // Registrar en auditoría
+    await this.auditoriaUsuariosService.registrarEvento(
+      'UserRegistered',             // Nombre del evento
+      savedUser.id,                 // ID del usuario creado
+      'info',                       // Nivel de severidad
+      'Nuevo usuario registrado exitosamente', // Mensaje legible
+      '/auth/register',             // Endpoint o módulo
+      correlationId   // CorrelationId para trazabilidad
+    );
+
+    // Registrar en logs de
     this.logger.info({
       event: 'UsuarioCreado',
       userId: savedUser.id,
       email: savedUser.email,
+      correlationId,
       message: 'Nuevo usuario creado exitosamente',
     });
 
