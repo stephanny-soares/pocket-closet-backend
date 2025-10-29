@@ -51,4 +51,9 @@ export class LoggerService {
   error(message: any) {
     this.logger.error(message);
   }
+
+  //  Nuevo método debug() para entorno de desarrollo
+  debug(message: any) {
+    this.logger.debug(message);
+  }
 }
