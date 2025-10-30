@@ -7,6 +7,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const logger = app.get(LoggerService);
 
+  // Habilitar CORS
+  app.enableCors({
+    origin: ['http://localhost:8081', 'http://localhost:3000', 'http://localhost:5000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   // Registrar el filtro global
   app.useGlobalFilters(new HttpExceptionFilter(logger));
 

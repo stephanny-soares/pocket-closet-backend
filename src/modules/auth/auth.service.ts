@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
 import { CreateUserDto } from './dto/create-user.dto';
+import { LoginDto } from './dto/login.dto';
 import { validarEmail, validarNombre, validarPassword } from '../../common/validators/general-validators';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { AuditoriaUsuariosService } from '../auditoria-usuarios/auditoria-usuarios.service';
@@ -16,16 +17,18 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly logger: LoggerService,
-    private readonly auditoriaUsuariosService: AuditoriaUsuariosService, 
+    private readonly auditoriaUsuariosService: AuditoriaUsuariosService,
+    private readonly jwtService: JwtService,  
   ) {}
 
-  // Recibimos correlationId desde el controller
+  /**
+   * Registro de nuevo usuario con validaciones, auditoría y token JWT
+   */
   async register(createUserDto: CreateUserDto, correlationId?: string) {
     const { name, email, password } = createUserDto;
 
     // Validaciones
     if (!validarNombre(name) || !validarEmail(email) || !validarPassword(password)) {
-      // Usar el logger aca
       this.logger.warn({
         event: 'DatosInvalidos',
         message: 'Intento de registro con datos inválidos',
@@ -46,22 +49,22 @@ export class AuthService {
       throw new ConflictException('Email ya registrado');
     }
 
-    // Crear usuario
+    // Creación y guardado del nuevo usuario
     const password_hash = await bcrypt.hash(password, 10);
     const user = this.userRepository.create({ name, email, password_hash });
     const savedUser = await this.userRepository.save(user);
 
     // Registrar en auditoría
     await this.auditoriaUsuariosService.registrarEvento(
-      'UserRegistered',             // Nombre del evento
-      savedUser.id,                 // ID del usuario creado
-      'info',                       // Nivel de severidad
-      'Nuevo usuario registrado exitosamente', // Mensaje legible
-      '/auth/register',             // Endpoint o módulo
-      correlationId   // CorrelationId para trazabilidad
+      'UserRegistered',
+      savedUser.id,
+      'info',
+      'Nuevo usuario registrado exitosamente',
+      '/auth/register',
+      correlationId
     );
 
-    // Registrar en logs de
+    // Registrar en logs 
     this.logger.info({
       event: 'UsuarioCreado',
       userId: savedUser.id,
@@ -70,14 +73,83 @@ export class AuthService {
       message: 'Nuevo usuario creado exitosamente',
     });
 
-    
-    // Generar JWT
-    const token = jwt.sign(
-      { id: savedUser.id, email: savedUser.email },
-      process.env.JWT_SECRET || 'secretkey',
-      { expiresIn: '1h' },
-    );
+    // Generar JWT usando JwtService de NestJS
+    const payload = { id: savedUser.id, email: savedUser.email };
+    const token = this.jwtService.sign(payload);
 
     return { ok: true, usuario: savedUser, token };
+  }
+
+  /**
+   * Login de usuario con validaciones y token JWT
+   */
+  async login(loginDto: LoginDto, correlationId?: string) {
+    const { email, password } = loginDto;
+
+    // Validaciones básicas
+    if (!validarEmail(email) || !password) {
+      this.logger.warn({
+        event: 'DatosLoginInvalidos',
+        message: 'Intento de login con datos inválidos',
+        email,
+        correlationId,
+      });
+      throw new BadRequestException('Email y contraseña son requeridos');
+    }
+
+    // Buscar usuario por email
+    const user = await this.userRepository.findOneBy({ email });
+    if (!user) {
+      this.logger.warn({
+        event: 'UsuarioNoEncontrado',
+        message: `Intento de login con email no registrado: ${email}`,
+        correlationId,
+      });
+      throw new UnauthorizedException('Email o contraseña incorrectos');
+    }
+
+    // Validar contraseña
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      this.logger.warn({
+        event: 'ContraseñaInvalida',
+        message: `Intento de login con contraseña incorrecta: ${email}`,
+        correlationId,
+      });
+      throw new UnauthorizedException('Email o contraseña incorrectos');
+    }
+
+    // Registrar en auditoría
+    await this.auditoriaUsuariosService.registrarEvento(
+      'UserLoggedIn',
+      user.id,
+      'info',
+      'Usuario inició sesión exitosamente',
+      '/auth/login',
+      correlationId
+    );
+
+    // Registrar en logs
+    this.logger.info({
+      event: 'UsuarioLoginExitoso',
+      userId: user.id,
+      email: user.email,
+      correlationId,
+      message: 'Usuario inició sesión exitosamente',
+    });
+
+    // Generar JWT
+    const payload = { id: user.id, email: user.email };
+    const token = this.jwtService.sign(payload);
+
+    return { ok: true, usuario: user, token };
+  }
+
+  /**
+   * Validación de usuario por ID (usado por JwtStrategy)
+   */
+  async validarUsuarioPorId(id: string) {
+    const usuario = await this.userRepository.findOne({ where: { id } });
+    return usuario || null;
   }
 }
