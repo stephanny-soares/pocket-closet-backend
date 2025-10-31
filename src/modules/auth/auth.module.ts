@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { UsersModule } from '../users/users.module'; // <--- importar UsersModule
+import { UsersModule } from '../users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import { LoggerModule } from 'src/common/logger/logger.module';
@@ -13,20 +13,17 @@ import { JwtStrategy } from './jwt.strategy';
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
-    UsersModule, // <--- importante para inyectar repositorio.
+    UsersModule,
     LoggerModule,
     AuditoriaUsuariosModule,
-
-   
-    // Módulo JWT centralizado
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'secretkey', // usa variable de entorno en producción
-      signOptions: { expiresIn: '1h' }, // tiempo de expiración del token
+      secret: process.env.JWT_SECRET || 'secretkey',
+      signOptions: { expiresIn: '1h' },
     }),
-
   ],
-
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],
+  exports: [JwtModule, PassportModule, JwtStrategy],
 })
 export class AuthModule {}

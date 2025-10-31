@@ -6,6 +6,9 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { LoggerModule } from './common/logger/logger.module';  // usae el módulo en lugar del provider directo
+import { PrendasModule } from './modules/prendas/prendas.module';
+import { User } from './entities/user.entity';
+import { Prenda } from './entities/prenda.entity';
 
 
 @Module({
@@ -18,12 +21,14 @@ import { LoggerModule } from './common/logger/logger.module';  // usae el módul
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
+      entities: [User, Prenda],
       autoLoadEntities: true,
       synchronize: true, // crea las tablas automáticamente según entidades (solo para desarrollo, no usar en producción).
     }),
     LoggerModule, // ✅ se importa el módulo global
     UsersModule,
-    AuthModule, // 👈 ESTE IMPORT ES CLAVE
+    AuthModule,
+    PrendasModule, // 👈 ESTE IMPORT ES CLAVE
   ],
   controllers: [AppController],
   //providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros

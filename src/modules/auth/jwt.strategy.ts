@@ -13,7 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
 
       // Secreto usado para firmar los tokens (mismo que en JwtModule)
-      secretOrKey: process.env.JWT_SECRET || 'mi_clave_secreta',
+      secretOrKey: process.env.JWT_SECRET || 'secretkey',
     });
   }
 
