@@ -30,29 +30,26 @@ Objetivo: facilitar la toma de decisiones diarias sobre qué vestir y optimizar 
 
 ## Tecnologías
 
-- Node.js
-- Express
-- TypeScript
-- MySQL
-- Docker & Docker Compose
+| Componente | Tecnología |
+|-----------|-----------|
+| **Framework** | NestJS |
+| **Lenguaje** | TypeScript |
+| **Base de Datos** | MySQL |
+| **Autenticación** | JWT + Passport |
+| **Cache** | Redis Cloud |
+| **Documentación** | Swagger/OpenAPI |
+
 
 ---
 
 ## Estructura del proyecto
 
 ```plaintext
-backend/
-└── src/
-    ├── app.js
-    ├── server.js
-    ├── config/        # Configuraciones (ej: db.js)
-    ├── controllers/   # Lógica de rutas (registerController, userController)
-    ├── middlewares/   # Middlewares y manejadores (errorHandler, requestLogger)
-    ├── models/        # Models/Entities (User.js)
-    ├── routes/        # Endpoints de la API (register, users, utils)
-    ├── services/      # Lógica de negocio
-    ├── utils/         # Scripts y utilitarios (create_users_table.sql)
-    └── validators/    # Validaciones (generalValidators.js)
+src/
+├── common/          # Utilidades compartidas
+├── entities/        # Modelos
+├── modules/         # Módulos (auth, users, prendas)
+└── main.ts         # Entrada
 
 ```
 ---
@@ -77,22 +74,48 @@ DB_NAME=pocketcloset
 FIREBASE_PROJECT_ID=...
 FIREBASE_CLIENT_EMAIL=...
 FIREBASE_PRIVATE_KEY=...
+# JWT
+JWT_SECRET=tu_secreto_aqui
+
+# Redis (Compartida)
+REDIS_URL=redis://default:PASSWORD@HOST:PORT
+REDIS_BLOCK_DURATION=60
 ```
 
 ### 3. Ejecutar localmente (TypeScript)
 ```bash
-npm run dev
+npm run start:dev
 # "dev": "ts-node-dev src/index.ts" en package.json
 ```
 Servidor disponible en: http://localhost:5000
 
-### 4. Ejecutar con Docker
-```bash
-docker build -t pocketcloset-backend .
-docker run -it --rm -p 5000:5000 pocketcloset-backend
-```
+📚 Swagger: http://localhost:5000/api/docs
+
+## ✨ Endpoints
+
+### Auth (Públicos)
+- POST /api/auth/register - Registrar
+- POST /api/auth/login - Login
+
+### Users (JWT requerido)
+- GET /api/users - Obtener todos
+- POST /api/users - Crear
+
+### Prendas (JWT requerido)
+- GET /api/prendas - Obtener todas
+- POST /api/prendas - Crear (upload + IA)
+
+## 🔒 Seguridad
+
+- ✅ Contraseñas con bcrypt
+- ✅ JWT con expiración
+- ✅ Anti-brute-force: 5 intentos = bloqueo IP
+- ✅ Auditoría de eventos
+- ✅ CORS configurado
+- ✅ Validación de entrada
 
 ---
+
 ## Enlaces relacionados
 
 Frontend del proyecto: https://github.com/stephanny-soares/pocket-closet-frontend
