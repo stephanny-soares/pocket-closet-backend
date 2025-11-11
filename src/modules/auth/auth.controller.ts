@@ -3,6 +3,8 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
+
 
 @ApiTags('auth')
 @Controller('api/auth')
@@ -11,6 +13,7 @@ export class AuthController {
 
 
   @Post('register')
+  @Public()
   @ApiOperation({
     summary: 'Registrar nuevo usuario',
     description: 'Crear una nueva cuenta en PocketCloset',
@@ -49,6 +52,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
    @ApiOperation({
     summary: 'Iniciar sesión',
     description: 'Autenticarse en PocketCloset y obtener token JWT',

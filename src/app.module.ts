@@ -13,6 +13,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { AuditoriaUsuario } from './entities/auditoria-usuario.entity';
 
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), // permite usar process.env en todo el proyecto

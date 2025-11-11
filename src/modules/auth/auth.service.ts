@@ -296,7 +296,9 @@ export class AuthService {
    * Validación de usuario por ID (usado por JwtStrategy)
    */
   async validarUsuarioPorId(id: string) {
+    console.log('🔍 Buscando usuario con ID:', id); // ← AGREGAR
     const usuario = await this.userRepository.findOne({ where: { id } });
+    console.log('👤 Usuario encontrado:', usuario); // ← AGREGAR
     return usuario || null;
   }
 }
