@@ -120,7 +120,8 @@ export class AuthService {
         'warn',
         `Intento de login desde IP bloqueada: ${ipAddress}`,
         '/auth/login',
-        correlationId
+        correlationId,
+        ipAddress
       );
       throw new UnauthorizedException('Demasiados intentos fallidos. Intenta más tarde.');
     }
@@ -168,7 +169,8 @@ export class AuthService {
         'warn',
         'Intento de login en cuenta inactiva',
         '/auth/login',
-        correlationId
+        correlationId,
+        ipAddress
       );
       throw new UnauthorizedException('Cuenta no activada');
     }
@@ -190,7 +192,8 @@ export class AuthService {
         'warn',
         'Intento de login con email no confirmado',
         '/auth/login',
-        correlationId
+        correlationId,
+        ipAddress
       );
       throw new UnauthorizedException('Email no confirmado');
     }
@@ -220,7 +223,8 @@ export class AuthService {
       'info',
       'Usuario inició sesión exitosamente',
       '/auth/login',
-      correlationId
+      correlationId,
+      ipAddress
     );
 
     // Registrar en logs
@@ -282,7 +286,8 @@ export class AuthService {
         'warn',
         `IP bloqueada por múltiples intentos fallidos: ${ip}`,
         '/auth/login',
-        correlationId
+        correlationId,
+        ip
       );
     }
   }

@@ -24,6 +24,9 @@ export class AuditoriaUsuario {
   @Column({ type: 'varchar', length: 100, nullable: true })
   correlationId: string | null; // ID global para trazabilidad entre servicios
 
+   @Column({ type: 'varchar', length: 45, nullable: true }) 
+  ip: string | null; // PC-76: Registrar IP del cliente
+
   @Column({ type: 'text' })
   message: string; // Descripción resumida del evento
 
