@@ -9,17 +9,29 @@ import { LoginDto } from './dto/login.dto';
 import { validarEmail, validarNombre, validarPassword } from '../../common/validators/general-validators';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { AuditoriaUsuariosService } from '../auditoria-usuarios/auditoria-usuarios.service';
+import { RedisService } from '../../common/redis/redis.service';
 
 
 @Injectable()
 export class AuthService {
+  // Para Redis - PC-75
+  private readonly MAX_ATTEMPTS = 5;
+  private  BLOCK_DURATION_SECONDS: number; // tiempo
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly logger: LoggerService,
     private readonly auditoriaUsuariosService: AuditoriaUsuariosService,
-    private readonly jwtService: JwtService,  
-  ) {}
+    private readonly jwtService: JwtService,
+    private readonly redisService: RedisService,
+  ) {
+    // Leer desde .env, default: 2 min en dev, 15 min en prod
+    this.BLOCK_DURATION_SECONDS = parseInt(
+      process.env.REDIS_BLOCK_DURATION || '900',
+      10,
+    );
+  }
 
   /**
    * Registro de nuevo usuario con validaciones, auditoría y token JWT
@@ -82,9 +94,37 @@ export class AuthService {
 
   /**
    * Login de usuario con validaciones y token JWT
+   * Endpoint POST /login
+   * Verificar cuenta activa
+   * Anti-brute-force por IP
+   * Verificar email confirmado
    */
-  async login(loginDto: LoginDto, correlationId?: string) {
+  async login(loginDto: LoginDto, correlationId?: string, ip?: string) {
     const { email, password } = loginDto;
+    const ipAddress = ip || 'unknown';
+    const attemptKey = `login_attempts:${ipAddress}`;
+    const blockKey = `login_blocked:${ipAddress}`;
+
+    // Verificar si la IP está bloqueada
+    const isBlocked = await this.redisService.get(blockKey);
+    if (isBlocked) {
+      this.logger.warn({
+        event: 'IpBloqueada',
+        message: `IP bloqueada por múltiples intentos fallidos: ${ipAddress}`,
+        ip: ipAddress,
+        correlationId,
+      });
+      await this.auditoriaUsuariosService.registrarEvento(
+        'LoginAttemptBlockedIP',
+        null,
+        'warn',
+        `Intento de login desde IP bloqueada: ${ipAddress}`,
+        '/auth/login',
+        correlationId,
+        ipAddress
+      );
+      throw new UnauthorizedException('Demasiados intentos fallidos. Intenta más tarde.');
+    }
 
     // Validaciones básicas
     if (!validarEmail(email) || !password) {
@@ -100,24 +140,81 @@ export class AuthService {
     // Buscar usuario por email
     const user = await this.userRepository.findOneBy({ email });
     if (!user) {
+      // Incrementar intentos fallidos
+      await this.incrementLoginAttempts(attemptKey, blockKey, ipAddress, correlationId);
+
       this.logger.warn({
         event: 'UsuarioNoEncontrado',
         message: `Intento de login con email no registrado: ${email}`,
+        ip: ipAddress,
         correlationId,
       });
       throw new UnauthorizedException('Email o contraseña incorrectos');
     }
 
+    // Verificar que la cuenta esté activa
+    if (!user.is_active) {
+      await this.incrementLoginAttempts(attemptKey, blockKey, ipAddress, correlationId);
+
+      this.logger.warn({
+        event: 'CuentaInactiva',
+        message: `Intento de login en cuenta inactiva: ${email}`,
+        userId: user.id,
+        ip: ipAddress,
+        correlationId,
+      });
+      await this.auditoriaUsuariosService.registrarEvento(
+        'LoginAttemptInactiveAccount',
+        user.id,
+        'warn',
+        'Intento de login en cuenta inactiva',
+        '/auth/login',
+        correlationId,
+        ipAddress
+      );
+      throw new UnauthorizedException('Cuenta no activada');
+    }
+
+    // Verificar que el email esté confirmado
+    if (!user.email_confirmed) {
+      await this.incrementLoginAttempts(attemptKey, blockKey, ipAddress, correlationId);
+
+      this.logger.warn({
+        event: 'EmailNoConfirmado',
+        message: `Intento de login con email no confirmado: ${email}`,
+        userId: user.id,
+        ip: ipAddress,
+        correlationId,
+      });
+      await this.auditoriaUsuariosService.registrarEvento(
+        'LoginAttemptUnconfirmedEmail',
+        user.id,
+        'warn',
+        'Intento de login con email no confirmado',
+        '/auth/login',
+        correlationId,
+        ipAddress
+      );
+      throw new UnauthorizedException('Email no confirmado');
+    }
+
     // Validar contraseña
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
+      // Incrementar intentos fallidos
+      await this.incrementLoginAttempts(attemptKey, blockKey, ipAddress, correlationId);
+
       this.logger.warn({
         event: 'ContraseñaInvalida',
         message: `Intento de login con contraseña incorrecta: ${email}`,
+        ip: ipAddress,
         correlationId,
       });
       throw new UnauthorizedException('Email o contraseña incorrectos');
     }
+
+    // ✅ LOGIN EXITOSO: Limpiar intentos fallidos
+    await this.redisService.del(attemptKey);
 
     // Registrar en auditoría
     await this.auditoriaUsuariosService.registrarEvento(
@@ -126,7 +223,8 @@ export class AuthService {
       'info',
       'Usuario inició sesión exitosamente',
       '/auth/login',
-      correlationId
+      correlationId,
+      ipAddress
     );
 
     // Registrar en logs
@@ -134,6 +232,7 @@ export class AuthService {
       event: 'UsuarioLoginExitoso',
       userId: user.id,
       email: user.email,
+      ip: ipAddress,
       correlationId,
       message: 'Usuario inició sesión exitosamente',
     });
@@ -146,10 +245,60 @@ export class AuthService {
   }
 
   /**
+   * Incrementar contador de intentos fallidos
+   * y bloquear IP si excede límite
+   */
+  private async incrementLoginAttempts(
+    attemptKey: string,
+    blockKey: string,
+    ip: string,
+    correlationId?: string,
+  ) {
+    const attempts = await this.redisService.increment(attemptKey);
+
+    // Primera vez, setear expiración
+    if (attempts === 1) {
+      await this.redisService.expire(attemptKey, this.BLOCK_DURATION_SECONDS);
+    }
+
+    this.logger.warn({
+      event: 'LoginAttemptFailed',
+      message: `Intento de login fallido. Intento ${attempts}/${this.MAX_ATTEMPTS}`,
+      ip,
+      attempts,
+      correlationId,
+    });
+
+    // Si alcanza el límite, bloquear IP
+    if (attempts >= this.MAX_ATTEMPTS) {
+      await this.redisService.setEx(blockKey, this.BLOCK_DURATION_SECONDS, 'blocked');
+
+      this.logger.warn({
+        event: 'IpBloqueadaPorIntentosMultiples',
+        message: `IP bloqueada por ${this.BLOCK_DURATION_SECONDS} segundos`,
+        ip,
+        correlationId,
+      });
+
+      await this.auditoriaUsuariosService.registrarEvento(
+        'LoginAttemptsExceeded',
+        null,
+        'warn',
+        `IP bloqueada por múltiples intentos fallidos: ${ip}`,
+        '/auth/login',
+        correlationId,
+        ip
+      );
+    }
+  }
+
+  /**
    * Validación de usuario por ID (usado por JwtStrategy)
    */
   async validarUsuarioPorId(id: string) {
+    console.log('🔍 Buscando usuario con ID:', id); // ← AGREGAR
     const usuario = await this.userRepository.findOne({ where: { id } });
+    console.log('👤 Usuario encontrado:', usuario); // ← AGREGAR
     return usuario || null;
   }
 }

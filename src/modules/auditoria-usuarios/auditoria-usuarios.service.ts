@@ -18,6 +18,7 @@ export class AuditoriaUsuariosService {
    * @param message Descripción legible del evento
    * @param requestId ID único de la solicitud HTTP (opcional)
    * @param correlationId ID global para trazabilidad (opcional)
+   * @param ip IP del cliente (opcional)
    */
   async registrarEvento(
     event: string,
@@ -26,6 +27,7 @@ export class AuditoriaUsuariosService {
     message: string,
     requestId?: string,
     correlationId?: string,
+    ip?: string,
   ) {
     // Debemos usar los nombres de propiedad EXACTOS de la entidad
     const registro = this.auditoriaRepo.create({
@@ -35,6 +37,7 @@ export class AuditoriaUsuariosService {
       message,
       requestId,
       correlationId,
+      ip: ip || null,
     });
 
     return this.auditoriaRepo.save(registro);

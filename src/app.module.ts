@@ -9,6 +9,9 @@ import { LoggerModule } from './common/logger/logger.module';  // usae el módul
 import { PrendasModule } from './modules/prendas/prendas.module';
 import { User } from './entities/user.entity';
 import { Prenda } from './entities/prenda.entity';
+import { RedisModule } from './common/redis/redis.module';
+import { AuditoriaUsuario } from './entities/auditoria-usuario.entity';
+
 
 
 @Module({
@@ -21,11 +24,12 @@ import { Prenda } from './entities/prenda.entity';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [User, Prenda],
+      entities: [User, Prenda, AuditoriaUsuario],
       autoLoadEntities: true,
       synchronize: true, // crea las tablas automáticamente según entidades (solo para desarrollo, no usar en producción).
     }),
     LoggerModule, // ✅ se importa el módulo global
+    RedisModule,
     UsersModule,
     AuthModule,
     PrendasModule, // 👈 ESTE IMPORT ES CLAVE

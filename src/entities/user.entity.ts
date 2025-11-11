@@ -15,6 +15,16 @@ export class User {
   @Column()
   password_hash: string;
 
+   @Column({ default: true, name: 'is_active' })
+  is_active: boolean; // PC-74: Verificar que la cuenta esté activa
+
+  // true para desarrollo
+  @Column({ default: true, name: 'email_confirmed' }) 
+  email_confirmed: boolean; // PC-77: Verificar que el email esté confirmado
+
+  @Column({ type: 'timestamp', nullable: true, name: 'confirmed_at' })
+  confirmed_at: Date | null; // Fecha cuando se confirmó el email
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

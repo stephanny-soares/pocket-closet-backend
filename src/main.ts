@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggerService } from './common/logger/logger.service'; 
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -32,6 +33,8 @@ async function bootstrap() {
 
   // Registrar el filtro global
   app.useGlobalFilters(new HttpExceptionFilter(logger));
+  //app.useGlobalGuards(new JwtAuthGuard());
+  
 
 
   await app.listen(process.env.PORT || 5000, '0.0.0.0');

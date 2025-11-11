@@ -3,6 +3,8 @@ import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
+
 
 @ApiTags('auth')
 @Controller('api/auth')
@@ -11,6 +13,7 @@ export class AuthController {
 
 
   @Post('register')
+  @Public()
   @ApiOperation({
     summary: 'Registrar nuevo usuario',
     description: 'Crear una nueva cuenta en PocketCloset',
@@ -49,6 +52,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Public()
    @ApiOperation({
     summary: 'Iniciar sesión',
     description: 'Autenticarse en PocketCloset y obtener token JWT',
@@ -72,16 +76,33 @@ export class AuthController {
     },
   })
   @ApiResponse({
+    status: 429,
+    description: 'Demasiados intentos fallidos',
+  })
+  @ApiResponse({
     status: 400,
     description: 'Email o contraseña incorrectos',
   })
   async login(@Body() loginDto: LoginDto, @Req() req: Express.Request) {
     try {
       const correlationId = (req as any).correlationId || null;
-      const result = await this.authService.login(loginDto, correlationId);
+      const ip = this.getClientIp(req); // ← AGREGAR IP para redis
+      const result = await this.authService.login(loginDto, correlationId, ip);
       return result;
     } catch (error) {
       throw new HttpException({ ok: false, error: error.message }, HttpStatus.BAD_REQUEST);
     }
   }
+
+  /**
+ * Obtener IP del cliente
+ */
+private getClientIp(req: any): string {
+  return (
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+    req.socket?.remoteAddress ||
+    req.ip ||
+    'unknown'
+  );
+}
 }
