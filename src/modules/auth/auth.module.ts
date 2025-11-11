@@ -9,6 +9,7 @@ import { AuditoriaUsuariosModule } from '../auditoria-usuarios/auditoria-usuario
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy'; 
+import { RedisModule } from 'src/common/redis/redis.module'; // ← AGREGAR
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
     UsersModule,
     LoggerModule,
     AuditoriaUsuariosModule,
+    RedisModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretkey',
