@@ -82,6 +82,8 @@ export class AuthService {
 
   /**
    * Login de usuario con validaciones y token JWT
+   * Verificar cuenta activa
+   * Verificar email confirmado
    */
   async login(loginDto: LoginDto, correlationId?: string) {
     const { email, password } = loginDto;
@@ -107,6 +109,44 @@ export class AuthService {
       });
       throw new UnauthorizedException('Email o contraseña incorrectos');
     }
+
+    // Verificar que la cuenta esté activa
+  if (!user.is_active) {
+    this.logger.warn({
+      event: 'CuentaInactiva',
+      message: `Intento de login en cuenta inactiva: ${email}`,
+      userId: user.id,
+      correlationId,
+    });
+    await this.auditoriaUsuariosService.registrarEvento(
+      'LoginAttemptInactiveAccount',
+      user.id,
+      'warn',
+      'Intento de login en cuenta inactiva',
+      '/auth/login',
+      correlationId
+    );
+    throw new UnauthorizedException('Cuenta no activada');
+  }
+
+  // Verificar que el email esté confirmado
+  if (!user.email_confirmed) {
+    this.logger.warn({
+      event: 'EmailNoConfirmado',
+      message: `Intento de login con email no confirmado: ${email}`,
+      userId: user.id,
+      correlationId,
+    });
+    await this.auditoriaUsuariosService.registrarEvento(
+      'LoginAttemptUnconfirmedEmail',
+      user.id,
+      'warn',
+      'Intento de login con email no confirmado',
+      '/auth/login',
+      correlationId
+    );
+    throw new UnauthorizedException('Email no confirmado');
+  }
 
     // Validar contraseña
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
