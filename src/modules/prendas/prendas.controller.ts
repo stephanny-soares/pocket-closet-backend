@@ -8,12 +8,17 @@ import {
   Param,
   UseGuards,
   Req,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { PrendasService } from './prendas.service';
 import { CreatePrendaDto } from './dto/create-prenda.dto';
 import { UpdatePrendaDto } from './dto/update-prenda.dto';
-import {ApiTags,ApiOperation,ApiResponse,ApiBody,ApiParam,ApiBearerAuth,} from '@nestjs/swagger';
+import {ApiTags,ApiOperation,ApiResponse,ApiBody,ApiParam,ApiBearerAuth, ApiConsumes,} from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+
 
 
 @ApiTags('prendas')
@@ -22,6 +27,76 @@ import {ApiTags,ApiOperation,ApiResponse,ApiBody,ApiParam,ApiBearerAuth,} from '
 @UseGuards(JwtAuthGuard)
 export class PrendasController {
   constructor(private readonly prendasService: PrendasService) {}
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('archivo'))
+  @ApiOperation({
+    summary: 'Subir imagen de prenda desde dispositivo/móvil',
+    description: 'Carga una imagen del dispositivo, la sube a Cloud Storage y crea la prenda automáticamente',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        archivo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo de imagen (jpg, png, etc.)',
+        },
+        marca: {
+          type: 'string',
+          description: 'Marca de la prenda (opcional)',
+        },
+        ocasion: {
+          type: 'string',
+          description: 'casual, formal, deporte, etc. (opcional)',
+        },
+        estacion: {
+          type: 'string',
+          description: 'verano, invierno, primavera, otoño (opcional)',
+        },
+      },
+      required: ['archivo'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Prenda creada desde imagen',
+    example: {
+      ok: true,
+      prenda: {
+        id: 'uuid',
+        nombre: 'Camiseta azul',
+        tipo: 'camiseta',
+        color: 'azul',
+        imagen: 'https://storage.googleapis.com/...',
+        seccion: 'superior',
+        createdAt: '2025-11-13T14:30:00Z',
+      },
+    },
+  })
+  async subirPrenda(
+    @UploadedFile() archivo: Express.Multer.File,
+    @Body() body: any,
+    @Req() req: Express.Request,
+  ) {
+    if (!archivo) {
+      throw new BadRequestException('Se requiere un archivo de imagen');
+    }
+
+    const usuario = (req as any).user;
+    const prenda = await this.prendasService.crearPrendaDesdeArchivo(
+      archivo,
+      {
+        marca: body.marca,
+        ocasion: body.ocasion,
+        estacion: body.estacion,
+      },
+      usuario,
+    );
+    return { ok: true, prenda };
+  }
 
   @Post()
   @ApiOperation({
