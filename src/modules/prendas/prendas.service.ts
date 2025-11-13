@@ -6,6 +6,7 @@ import { User } from '../../entities/user.entity';
 import { CreatePrendaDto } from './dto/create-prenda.dto';
 import { UpdatePrendaDto } from './dto/update-prenda.dto';
 import vision from '@google-cloud/vision';
+import { StorageService } from '../../common/services/storage.service';
 
 @Injectable()
 export class PrendasService {
@@ -15,6 +16,7 @@ export class PrendasService {
   constructor(
     @InjectRepository(Prenda)
     private readonly prendaRepository: Repository<Prenda>,
+    private readonly storageService: StorageService,
   ) {
     this.gcpProjectId = process.env.GOOGLE_CLOUD_VISION_PROJECT_ID || '';
     this.visionClient = new vision.ImageAnnotatorClient({
@@ -61,6 +63,59 @@ export class PrendasService {
     } catch (error) {
       throw new BadRequestException(
         `Error al procesar imagen: ${error.message}`,
+      );
+    }
+  }
+
+   /**
+   * Crear prenda desde archivo subido (desde móvil/dispositivo)
+   */
+  async crearPrendaDesdeArchivo(
+    archivo: Express.Multer.File,
+    datosAdicionales: any,
+    usuario: User,
+  ): Promise<Prenda> {
+    try {
+      // Validar que sea imagen
+      if (!archivo.mimetype.startsWith('image/')) {
+        throw new BadRequestException('El archivo debe ser una imagen');
+      }
+
+      // Subir a Google Cloud Storage
+      const urlImagen = await this.storageService.subirArchivo(archivo);
+
+      // Clasificar imagen con Google Vision
+      const labels = await this.clasificarImagen(urlImagen);
+      console.log('Labels recibidos:', labels);
+
+      // Extraer información
+      const tipo = this.extraerTipo(labels);
+      const color = this.extraerColor(labels);
+      const seccion = this.extraerSeccion(tipo);
+      const nombre = this.generarNombre(tipo, color);
+
+      // Crear prenda en BD
+      const prenda = this.prendaRepository.create({
+        nombre: nombre,
+        tipo: tipo,
+        color: color,
+        imagen: urlImagen, // URL de Cloud Storage
+        marca: datosAdicionales.marca,
+        ocasion: datosAdicionales.ocasion,
+        estacion: datosAdicionales.estacion,
+        seccion: seccion,
+        usuario,
+        metadatos: {
+          labels: labels,
+          procesadoPor: 'GoogleCloudVision',
+          subidoDesde: 'Dispositivo',
+        },
+      });
+
+      return await this.prendaRepository.save(prenda);
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al procesar archivo: ${error.message}`,
       );
     }
   }
