@@ -37,6 +37,7 @@ export class PrendasService {
       // Extraer información
       const tipo = this.extraerTipo(labels);
       const color = this.extraerColor(labels);
+      const seccion = this.extraerSeccion(tipo);
       const nombre = this.generarNombre(tipo, color);
 
       // Crear prenda en BD
@@ -44,6 +45,7 @@ export class PrendasService {
         nombre: createPrendaDto.nombre || nombre,
         tipo: createPrendaDto.tipo || tipo,
         color: createPrendaDto.color || color,
+        seccion: seccion,
         imagen: createPrendaDto.imagen,
         marca: createPrendaDto.marca,
         ocasion: createPrendaDto.ocasion,
@@ -204,6 +206,100 @@ export class PrendasService {
    */
   private generarNombre(tipo: string, color: string): string {
     return `${color.charAt(0).toUpperCase() + color.slice(1)} ${tipo}`;
+  }
+
+   /**
+   * Extraer sección (superior, inferior, calzado, accesorios, vestido)
+   * Útil para la Fase 4 - Outfits
+   */
+  private extraerSeccion(tipo: string): string {
+    const tipo_lower = tipo.toLowerCase();
+
+    if (
+      tipo_lower.includes('shirt') ||
+      tipo_lower.includes('camiseta') ||
+      tipo_lower.includes('camisa') ||
+      tipo_lower.includes('jacket') ||
+      tipo_lower.includes('chaqueta') ||
+      tipo_lower.includes('sweater') ||
+      tipo_lower.includes('hoodie') ||
+      tipo_lower.includes('sudadera') ||
+      tipo_lower.includes('blazer') ||
+      tipo_lower.includes('coat') ||
+      tipo_lower.includes('abrigo')
+    ) {
+      return 'superior';
+    }
+
+    if (
+      tipo_lower.includes('pants') ||
+      tipo_lower.includes('pantalón') ||
+      tipo_lower.includes('jeans') ||
+      tipo_lower.includes('skirt') ||
+      tipo_lower.includes('falda') ||
+      tipo_lower.includes('shorts') ||
+      tipo_lower.includes('bermudas') ||
+      tipo_lower.includes('leggings')
+    ) {
+      return 'inferior';
+    }
+
+    if (
+      tipo_lower.includes('shoes') ||
+      tipo_lower.includes('zapatos') ||
+      tipo_lower.includes('boots') ||
+      tipo_lower.includes('botas') ||
+      tipo_lower.includes('sneakers') ||
+      tipo_lower.includes('zapatillas') ||
+      tipo_lower.includes('sandals') ||
+      tipo_lower.includes('sandalias')
+    ) {
+      return 'calzado';
+    }
+
+    if (
+      tipo_lower.includes('hat') ||
+      tipo_lower.includes('sombrero') ||
+      tipo_lower.includes('cap') ||
+      tipo_lower.includes('gorra') ||
+      tipo_lower.includes('bag') ||
+      tipo_lower.includes('bolso') ||
+      tipo_lower.includes('scarf') ||
+      tipo_lower.includes('bufanda') ||
+      tipo_lower.includes('tie') ||
+      tipo_lower.includes('corbata') ||
+      tipo_lower.includes('gloves') ||
+      tipo_lower.includes('guantes')
+    ) {
+      return 'accesorios';
+    }
+
+    if (
+      tipo_lower.includes('dress') ||
+      tipo_lower.includes('vestido')
+    ) {
+      return 'vestido';
+    }
+
+    return 'superior'; // Sección por defecto
+  }
+
+  /**
+   * Obtener prendas filtradas por sección
+   * Útil para la Fase 4 - Outfits
+   */
+  async obtenerPrendasPorSeccion(
+    usuario: User,
+    seccion: string,
+  ): Promise<Prenda[]> {
+    const prendas = await this.prendaRepository.find({
+      where: { usuario: { id: usuario.id } },
+    });
+
+    // Filtrar por sección basándose en el tipo
+    return prendas.filter(
+      (p) => this.extraerSeccion(p.tipo) === seccion.toLowerCase(),
+    );
   }
 
   /**

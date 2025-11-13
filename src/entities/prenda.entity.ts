@@ -27,6 +27,9 @@ export class Prenda {
   @Column({ nullable: true })
   estacion?: string; // verano, invierno, primavera, otoño
 
+  @Column({ nullable: true })
+  seccion?: string; // superior, inferior, calzado, accesorios, vestido
+
   @Column({ type: 'json', nullable: true })
   metadatos?: object; // Confianza de IA, características
 
