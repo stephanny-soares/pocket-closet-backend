@@ -5,40 +5,33 @@ import { Prenda } from '../../entities/prenda.entity';
 import { User } from '../../entities/user.entity';
 import { CreatePrendaDto } from './dto/create-prenda.dto';
 import { UpdatePrendaDto } from './dto/update-prenda.dto';
+import vision from '@google-cloud/vision';
 
 @Injectable()
 export class PrendasService {
-  private hfApiKey: string;
-  private hfApiUrl = 'https://api-inference.huggingface.co/models';
+  private gcpProjectId: string;
+  private visionClient: any;
 
   constructor(
     @InjectRepository(Prenda)
     private readonly prendaRepository: Repository<Prenda>,
   ) {
-    this.hfApiKey = process.env.HUGGING_FACE_API_KEY || '';
+    this.gcpProjectId = process.env.GOOGLE_CLOUD_VISION_PROJECT_ID || '';
+    this.visionClient = new vision.ImageAnnotatorClient({
+      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    });
   }
 
   /**
-   * Analizar imagen con Hugging Face y crear prenda
+   * Analizar imagen con Google Cloud Vision y crear prenda
    */
   async crearPrendaDesdeImagen(
     createPrendaDto: CreatePrendaDto,
     usuario: User,
   ): Promise<Prenda> {
     try {
-      // Convertir imagen a buffer
-      let imageBuffer: Buffer;
-      if (createPrendaDto.imagen.startsWith('data:image')) {
-        const base64Data = createPrendaDto.imagen.split(',')[1];
-        imageBuffer = Buffer.from(base64Data, 'base64');
-      } else {
-        const response = await fetch(createPrendaDto.imagen);
-        const arrayBuffer = await response.arrayBuffer();
-        imageBuffer = Buffer.from(arrayBuffer);
-      }
-
-      // Llamar a Hugging Face para clasificación de imagen
-      const labels = await this.clasificarImagen(imageBuffer);
+      // Llamar a Google Cloud Vision para clasificación
+       const labels = await this.clasificarImagen(createPrendaDto.imagen);
       console.log('Labels recibidos:', labels);
 
       // Extraer información
@@ -58,7 +51,7 @@ export class PrendasService {
         usuario,
         metadatos: {
           labels: labels,
-          procesadoPor: 'HuggingFace',
+          procesadoPor: 'GoogleCloudVision',
         },
       });
 
@@ -71,30 +64,32 @@ export class PrendasService {
   }
 
   /**
-   * Clasificar imagen usando Hugging Face - Modelo Zero-Shot
+   * Clasificar imagen usando Google Cloud Vision
    */
-  private async clasificarImagen(imageBuffer: Buffer): Promise<any[]> {
+  private async clasificarImagen(imagenInput: string): Promise<any[]> {
     try {
-      // Usar modelo zero-shot para clasificación de objetos en ropa
-      const response = await fetch(
-        `${this.hfApiUrl}/Falconsai/nsfw_image_detection`,
-        {
-          headers: { Authorization: `Bearer ${this.hfApiKey}` },
-          method: 'POST',
-          body: new Uint8Array(imageBuffer),
-        },
-      );
+      let request: any;
 
-      if (!response.ok) {
-        const error = await response.text();
-        console.error('Hugging Face error response:', error);
-        // Si falla, usar clasificación manual
-        return this.clasificacionPorDefecto();
+      // Manejar imagen base64 o URL
+      if (imagenInput.startsWith('data:image')) {
+        const base64Data = imagenInput.split(',')[1];
+        request = {
+          image: { content: base64Data },
+        };
+      } else {
+        request = {
+          image: { source: { imageUri: imagenInput } },
+        };
       }
 
-      const result = await response.json();
-      console.log('Hugging Face result:', result);
-      return result;
+      const [result] = await this.visionClient.labelDetection(request);
+      const labels = result.labelAnnotations || [];
+
+      console.log('Google Cloud Vision result:', labels);
+      return labels.map(label => ({
+        label: label.description,
+        score: label.score,
+      }));
     } catch (error) {
       console.error('Error clasificando imagen:', error);
       return this.clasificacionPorDefecto();
@@ -102,7 +97,7 @@ export class PrendasService {
   }
 
   /**
-   * Clasificación por defecto si falla Hugging Face
+   * Clasificación por defecto si falla Google Cloud Vision
    */
   private clasificacionPorDefecto(): any[] {
     return [
