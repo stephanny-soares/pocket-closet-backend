@@ -11,15 +11,15 @@ import { StorageService } from '../../common/services/storage.service';
 @Injectable()
 export class PrendasService {
   private gcpProjectId: string;
-  private visionClient: any;
+  private clienteVision: any;
 
   constructor(
     @InjectRepository(Prenda)
     private readonly prendaRepository: Repository<Prenda>,
-    private readonly storageService: StorageService,
+    private readonly servicioAlmacenamiento: StorageService,
   ) {
     this.gcpProjectId = process.env.GOOGLE_CLOUD_VISION_PROJECT_ID || '';
-    this.visionClient = new vision.ImageAnnotatorClient({
+    this.clienteVision = new vision.ImageAnnotatorClient({
       keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     });
   }
@@ -28,33 +28,33 @@ export class PrendasService {
    * Analizar imagen con Google Cloud Vision y crear prenda
    */
   async crearPrendaDesdeImagen(
-    createPrendaDto: CreatePrendaDto,
+    crearPrendaDto: CreatePrendaDto,
     usuario: User,
   ): Promise<Prenda> {
     try {
       // Llamar a Google Cloud Vision para clasificación
-       const labels = await this.clasificarImagen(createPrendaDto.imagen);
-      console.log('Labels recibidos:', labels);
+      const etiquetas = await this.clasificarImagen(crearPrendaDto.imagen);
+      console.log('Etiquetas recibidas:', etiquetas);
 
       // Extraer información
-      const tipo = this.extraerTipo(labels);
-      const color = this.extraerColor(labels);
+      const tipo = this.extraerTipo(etiquetas);
+      const color = this.extraerColor(etiquetas);
       const seccion = this.extraerSeccion(tipo);
       const nombre = this.generarNombre(tipo, color);
 
       // Crear prenda en BD
       const prenda = this.prendaRepository.create({
-        nombre: createPrendaDto.nombre || nombre,
-        tipo: createPrendaDto.tipo || tipo,
-        color: createPrendaDto.color || color,
+        nombre: crearPrendaDto.nombre || nombre,
+        tipo: crearPrendaDto.tipo || tipo,
+        color: crearPrendaDto.color || color,
         seccion: seccion,
-        imagen: createPrendaDto.imagen,
-        marca: createPrendaDto.marca,
-        ocasion: createPrendaDto.ocasion,
-        estacion: createPrendaDto.estacion,
+        imagen: crearPrendaDto.imagen,
+        marca: crearPrendaDto.marca,
+        ocasion: crearPrendaDto.ocasion,
+        estacion: crearPrendaDto.estacion,
         usuario,
         metadatos: {
-          labels: labels,
+          etiquetas: etiquetas,
           procesadoPor: 'GoogleCloudVision',
         },
       });
@@ -67,7 +67,7 @@ export class PrendasService {
     }
   }
 
-   /**
+  /**
    * Crear prenda desde archivo subido (desde móvil/dispositivo)
    */
   async crearPrendaDesdeArchivo(
@@ -81,16 +81,16 @@ export class PrendasService {
         throw new BadRequestException('El archivo debe ser una imagen');
       }
 
-      // Subir a Google Cloud Storage
-      const urlImagen = await this.storageService.subirArchivo(archivo);
+      // Subir a Google Cloud Storage (con URL firmada)
+      const urlImagen = await this.servicioAlmacenamiento.subirArchivo(archivo);
 
       // Clasificar imagen con Google Vision
-      const labels = await this.clasificarImagen(urlImagen);
-      console.log('Labels recibidos:', labels);
+      const etiquetas = await this.clasificarImagen(urlImagen);
+      console.log('Etiquetas recibidas:', etiquetas);
 
       // Extraer información
-      const tipo = this.extraerTipo(labels);
-      const color = this.extraerColor(labels);
+      const tipo = this.extraerTipo(etiquetas);
+      const color = this.extraerColor(etiquetas);
       const seccion = this.extraerSeccion(tipo);
       const nombre = this.generarNombre(tipo, color);
 
@@ -99,14 +99,14 @@ export class PrendasService {
         nombre: nombre,
         tipo: tipo,
         color: color,
-        imagen: urlImagen, // URL de Cloud Storage
+        imagen: urlImagen,
         marca: datosAdicionales.marca,
         ocasion: datosAdicionales.ocasion,
         estacion: datosAdicionales.estacion,
         seccion: seccion,
         usuario,
         metadatos: {
-          labels: labels,
+          etiquetas: etiquetas,
           procesadoPor: 'GoogleCloudVision',
           subidoDesde: 'Dispositivo',
         },
@@ -121,36 +121,147 @@ export class PrendasService {
   }
 
   /**
-   * Clasificar imagen usando Google Cloud Vision
+   * Clasificar imagen usando Google Cloud Vision (Etiquetas + Propiedades de Imagen)
    */
-  private async clasificarImagen(imagenInput: string): Promise<any[]> {
+  private async clasificarImagen(imagenEntrada: string): Promise<any[]> {
     try {
-      let request: any;
+      console.log('🔍 === INICIANDO CLASIFICACIÓN ===');
+      console.log('📥 Tipo de entrada:', imagenEntrada.startsWith('data:image') ? 'Base64' : 'URL');
+
+      let solicitud: any;
 
       // Manejar imagen base64 o URL
-      if (imagenInput.startsWith('data:image')) {
-        const base64Data = imagenInput.split(',')[1];
-        request = {
-          image: { content: base64Data },
+      if (imagenEntrada.startsWith('data:image')) {
+        console.log('📝 Procesando Base64...');
+        const datosBase64 = imagenEntrada.split(',')[1];
+        solicitud = {
+          image: { content: datosBase64 },
+          features: [
+            { type: 'LABEL_DETECTION', maxResults: 10 },
+            { type: 'IMAGE_PROPERTIES' },
+          ],
         };
       } else {
-        request = {
-          image: { source: { imageUri: imagenInput } },
+        console.log('🌐 Procesando URL:', imagenEntrada.substring(0, 80) + '...');
+        solicitud = {
+          image: { source: { imageUri: imagenEntrada } },
+          features: [
+            { type: 'LABEL_DETECTION', maxResults: 10 },
+            { type: 'IMAGE_PROPERTIES' },
+          ],
         };
       }
 
-      const [result] = await this.visionClient.labelDetection(request);
-      const labels = result.labelAnnotations || [];
+      console.log('📤 Enviando a Google Cloud Vision...');
+      const [resultado] = await this.clienteVision.annotateImage(solicitud);
 
-      console.log('Google Cloud Vision result:', labels);
-      return labels.map(label => ({
-        label: label.description,
-        score: label.score,
+      // Etiquetas (objetos detectados)
+      const etiquetas = resultado.labelAnnotations || [];
+      console.log(`✅ Etiquetas: ${etiquetas.length} encontradas`);
+
+      // Colores dominantes
+      const colores = resultado.imagePropertiesAnnotation?.dominantColors?.colors || [];
+      console.log(`🎨 Colores dominantes: ${colores.length} encontrados`);
+
+      if (colores.length > 0) {
+        console.log(
+          '🌈 Colores RGB:',
+          colores
+            .slice(0, 3)
+            .map(
+              (c) =>
+                `rgb(${c.color?.red || 0}, ${c.color?.green || 0}, ${c.color?.blue || 0}) - ${(c.pixelFraction * 100).toFixed(1)}%`,
+            )
+            .join(', '),
+        );
+      }
+
+      // Combinar etiquetas con colores detectados
+      const todasLasEtiquetas = etiquetas.map((etiqueta) => ({
+        etiqueta: etiqueta.description,
+        puntuacion: etiqueta.score,
       }));
-    } catch (error) {
-      console.error('Error clasificando imagen:', error);
+
+      // Agregar el color dominante como primera etiqueta
+      if (colores.length > 0) {
+        const etiquetaColor = this.rgbANombreColor(colores[0].color);
+        if (etiquetaColor) {
+          todasLasEtiquetas.unshift({
+            etiqueta: etiquetaColor,
+            puntuacion: colores[0].pixelFraction || 0.5,
+          });
+          console.log(`🏷️  Color detectado: ${etiquetaColor}`);
+        }
+      }
+
+      return todasLasEtiquetas;
+    } catch (error: any) {
+      console.error('❌ ERROR CRÍTICO en clasificarImagen:');
+      console.error('   Mensaje:', error.message);
+      console.error('   Código:', error.code);
+      console.error('   Stack:', error.stack);
       return this.clasificacionPorDefecto();
     }
+  }
+
+  /**
+   * Convertir RGB a nombre de color en español
+   */
+  private rgbANombreColor(rgb: any): string {
+    if (!rgb) return '';
+
+    const r = rgb.red || 0;
+    const g = rgb.green || 0;
+    const b = rgb.blue || 0;
+
+    // Normalizar valores a rango 0-255
+    const maxRGB = Math.max(r, g, b);
+    const minRGB = Math.min(r, g, b);
+
+    // Si es un color muy claro (casi blanco)
+    if (maxRGB > 200 && (maxRGB - minRGB) < 50) {
+      return 'blanco';
+    }
+
+    // Si es un color muy oscuro (casi negro)
+    if (maxRGB < 80) {
+      return 'negro';
+    }
+
+    // Si todos los valores están cerca (gris)
+    if (Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30) {
+      return 'gris';
+    }
+
+    // Detectar color por dominancia
+    if (r > g && r > b) {
+      if (r > 180 && g > 100) {
+        return 'naranja';
+      }
+      if (r > 150 && g < 80 && b < 80) {
+        return 'rojo';
+      }
+      if (r > 200 && g > 150 && b < 100) {
+        return 'amarillo';
+      }
+      if (r > 150 && g < 100 && b > 100) {
+        return 'rosa';
+      }
+      if (r > 100 && g < 80 && b < 80) {
+        return 'marrón';
+      }
+    } else if (g > r && g > b) {
+      return 'verde';
+    } else if (b > r && b > g) {
+      if (b > 180 && (r + g) < 100) {
+        return 'azul';
+      }
+      if (r > 100 && g < 80 && b > 150) {
+        return 'púrpura';
+      }
+    }
+
+    return 'azul'; // Fallback
   }
 
   /**
@@ -158,181 +269,175 @@ export class PrendasService {
    */
   private clasificacionPorDefecto(): any[] {
     return [
-      { label: 'clothing', score: 0.9 },
-      { label: 'shirt', score: 0.8 },
+      { etiqueta: 'ropa', puntuacion: 0.9 },
+      { etiqueta: 'camiseta', puntuacion: 0.8 },
     ];
   }
 
   /**
-   * Extraer tipo de prenda de los labels
+   * Extraer tipo de prenda de las etiquetas de Google Vision
+   * Google devuelve en inglés, aquí traducimos a español
    */
-  private extraerTipo(labels: any[]): string {
-    const tiposComunes = [
-      'shirt',
-      'camiseta',
-      'camisa',
-      'pants',
-      'pantalón',
-      'jeans',
-      'skirt',
-      'falda',
-      'dress',
-      'vestido',
-      'jacket',
-      'chaqueta',
-      'coat',
-      'abrigo',
-      'hoodie',
-      'sudadera',
-      'shoes',
-      'zapatos',
-      'boots',
-      'botas',
-      'sneakers',
-      'zapatillas',
-      'hat',
-      'sombrero',
-      'cap',
-      'gorra',
-      'bag',
-      'bolso',
-      't-shirt',
-      'sweater',
-      'jersey',
-      'clothing',
-      'apparel',
-    ];
+  private extraerTipo(etiquetas: any[]): string {
+    // Mapa de traducción: inglés → español
+    const traducciones: { [key: string]: string } = {
+      // Camisas y tops
+      'shirt': 'camiseta',
+      't-shirt': 'camiseta',
+      'active shirt': 'camiseta deportiva',
+      'sports uniform': 'uniforme deportivo',
+      'jersey': 'jersey',
+      'sweater': 'suéter',
+      'hoodie': 'sudadera',
+      'jacket': 'chaqueta',
+      'coat': 'abrigo',
+      'blazer': 'blazer',
+      // Pantalones
+      'pants': 'pantalón',
+      'jeans': 'jeans',
+      'shorts': 'shorts',
+      'skirt': 'falda',
+      'leggings': 'leggings',
+      // Vestidos
+      'dress': 'vestido',
+      'gown': 'vestido de gala',
+      // Calzado
+      'shoes': 'zapatos',
+      'boots': 'botas',
+      'sneakers': 'zapatillas',
+      'sandals': 'sandalias',
+      'heels': 'tacones',
+      // Accesorios
+      'hat': 'sombrero',
+      'cap': 'gorra',
+      'bag': 'bolso',
+      'scarf': 'bufanda',
+      'tie': 'corbata',
+      'gloves': 'guantes',
+    };
 
-    for (const label of labels) {
-      const descripcion = label.label?.toLowerCase() || label.toLowerCase?.() || '';
-      for (const tipo of tiposComunes) {
-        if (descripcion.includes(tipo)) {
-          return tipo;
+    // Buscar en las etiquetas de Google Vision
+    for (const item of etiquetas) {
+      const descripcion = (item.etiqueta || item.label || '').toLowerCase();
+      
+      // Buscar coincidencias exactas o parciales
+      for (const [palabraIngles, palabraEspanola] of Object.entries(traducciones)) {
+        if (descripcion.includes(palabraIngles)) {
+          return palabraEspanola;
         }
       }
     }
 
-    return 'camiseta';
+    return 'camiseta'; // Valor por defecto
   }
 
   /**
-   * Extraer color de los labels
+   * Extraer color de las etiquetas de Google Vision
+   * Google devuelve en inglés, aquí traducimos a español
    */
-  private extraerColor(labels: any[]): string {
-    const coloresComunes = [
-      'red',
-      'rojo',
-      'blue',
-      'azul',
-      'green',
-      'verde',
-      'yellow',
-      'amarillo',
-      'black',
-      'negro',
-      'white',
-      'blanco',
-      'gray',
-      'gris',
-      'pink',
-      'rosa',
-      'purple',
-      'púrpura',
-      'orange',
-      'naranja',
-      'brown',
-      'marrón',
-    ];
+  private extraerColor(etiquetas: any[]): string {
+    // Mapa de traducción: inglés → español
+    const traducciones: { [key: string]: string } = {
+      'red': 'rojo',
+      'blue': 'azul',
+      'green': 'verde',
+      'yellow': 'amarillo',
+      'black': 'negro',
+      'white': 'blanco',
+      'gray': 'gris',
+      'grey': 'gris',
+      'pink': 'rosa',
+      'purple': 'púrpura',
+      'violet': 'violeta',
+      'orange': 'naranja',
+      'brown': 'marrón',
+      'maroon': 'granate',
+      'navy': 'azul marino',
+      'turquoise': 'turquesa',
+      'beige': 'beige',
+      'cream': 'crema',
+      'silver': 'plata',
+      'gold': 'oro',
+    };
 
-    for (const label of labels) {
-      const descripcion = label.label?.toLowerCase() || label.toLowerCase?.() || '';
-      for (const color of coloresComunes) {
-        if (descripcion.includes(color)) {
-          return color;
+    // Buscar en las etiquetas de Google Vision
+    for (const item of etiquetas) {
+      const descripcion = (item.etiqueta || item.label || '').toLowerCase();
+      
+      // Buscar coincidencias exactas o parciales
+      for (const [palabraIngles, palabraEspanola] of Object.entries(traducciones)) {
+        if (descripcion.includes(palabraIngles)) {
+          return palabraEspanola;
         }
       }
     }
 
-    return 'azul';
+    return 'azul'; // Valor por defecto
   }
 
   /**
-   * Generar nombre descriptivo
+   * Generar nombre descriptivo (Color + Tipo)
    */
   private generarNombre(tipo: string, color: string): string {
     return `${color.charAt(0).toUpperCase() + color.slice(1)} ${tipo}`;
   }
 
-   /**
+  /**
    * Extraer sección (superior, inferior, calzado, accesorios, vestido)
-   * Útil para la Fase 4 - Outfits
    */
   private extraerSeccion(tipo: string): string {
-    const tipo_lower = tipo.toLowerCase();
+    const tipoMinusculas = tipo.toLowerCase();
 
+    // Superior
     if (
-      tipo_lower.includes('shirt') ||
-      tipo_lower.includes('camiseta') ||
-      tipo_lower.includes('camisa') ||
-      tipo_lower.includes('jacket') ||
-      tipo_lower.includes('chaqueta') ||
-      tipo_lower.includes('sweater') ||
-      tipo_lower.includes('hoodie') ||
-      tipo_lower.includes('sudadera') ||
-      tipo_lower.includes('blazer') ||
-      tipo_lower.includes('coat') ||
-      tipo_lower.includes('abrigo')
+      tipoMinusculas.includes('camiseta') ||
+      tipoMinusculas.includes('jersey') ||
+      tipoMinusculas.includes('suéter') ||
+      tipoMinusculas.includes('sudadera') ||
+      tipoMinusculas.includes('chaqueta') ||
+      tipoMinusculas.includes('abrigo') ||
+      tipoMinusculas.includes('blazer') ||
+      tipoMinusculas.includes('deportiva')
     ) {
       return 'superior';
     }
 
+    // Inferior
     if (
-      tipo_lower.includes('pants') ||
-      tipo_lower.includes('pantalón') ||
-      tipo_lower.includes('jeans') ||
-      tipo_lower.includes('skirt') ||
-      tipo_lower.includes('falda') ||
-      tipo_lower.includes('shorts') ||
-      tipo_lower.includes('bermudas') ||
-      tipo_lower.includes('leggings')
+      tipoMinusculas.includes('pantalón') ||
+      tipoMinusculas.includes('jeans') ||
+      tipoMinusculas.includes('falda') ||
+      tipoMinusculas.includes('shorts') ||
+      tipoMinusculas.includes('leggings')
     ) {
       return 'inferior';
     }
 
+    // Calzado
     if (
-      tipo_lower.includes('shoes') ||
-      tipo_lower.includes('zapatos') ||
-      tipo_lower.includes('boots') ||
-      tipo_lower.includes('botas') ||
-      tipo_lower.includes('sneakers') ||
-      tipo_lower.includes('zapatillas') ||
-      tipo_lower.includes('sandals') ||
-      tipo_lower.includes('sandalias')
+      tipoMinusculas.includes('zapatos') ||
+      tipoMinusculas.includes('botas') ||
+      tipoMinusculas.includes('zapatillas') ||
+      tipoMinusculas.includes('sandalias') ||
+      tipoMinusculas.includes('tacones')
     ) {
       return 'calzado';
     }
 
+    // Accesorios
     if (
-      tipo_lower.includes('hat') ||
-      tipo_lower.includes('sombrero') ||
-      tipo_lower.includes('cap') ||
-      tipo_lower.includes('gorra') ||
-      tipo_lower.includes('bag') ||
-      tipo_lower.includes('bolso') ||
-      tipo_lower.includes('scarf') ||
-      tipo_lower.includes('bufanda') ||
-      tipo_lower.includes('tie') ||
-      tipo_lower.includes('corbata') ||
-      tipo_lower.includes('gloves') ||
-      tipo_lower.includes('guantes')
+      tipoMinusculas.includes('sombrero') ||
+      tipoMinusculas.includes('gorra') ||
+      tipoMinusculas.includes('bolso') ||
+      tipoMinusculas.includes('bufanda') ||
+      tipoMinusculas.includes('corbata') ||
+      tipoMinusculas.includes('guantes')
     ) {
       return 'accesorios';
     }
 
-    if (
-      tipo_lower.includes('dress') ||
-      tipo_lower.includes('vestido')
-    ) {
+    // Vestido (categoría especial)
+    if (tipoMinusculas.includes('vestido')) {
       return 'vestido';
     }
 
@@ -341,7 +446,6 @@ export class PrendasService {
 
   /**
    * Obtener prendas filtradas por sección
-   * Útil para la Fase 4 - Outfits
    */
   async obtenerPrendasPorSeccion(
     usuario: User,
@@ -387,11 +491,11 @@ export class PrendasService {
    */
   async actualizarPrenda(
     id: string,
-    updatePrendaDto: UpdatePrendaDto,
+    actualizarPrendaDto: UpdatePrendaDto,
     usuario: User,
   ): Promise<Prenda> {
     const prenda = await this.obtenerPrendaPorId(id, usuario);
-    Object.assign(prenda, updatePrendaDto);
+    Object.assign(prenda, actualizarPrendaDto);
     return await this.prendaRepository.save(prenda);
   }
 

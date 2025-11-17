@@ -23,6 +23,9 @@ export class User {
   @Column({ default: true, name: 'email_confirmed' }) 
   email_confirmed: boolean; // PC-77: Verificar que el email esté confirmado
 
+  @Column({ nullable: true })
+  ciudad?: string; // Ej: "Villena", "Alicante"
+
   @Column({ type: 'timestamp', nullable: true, name: 'confirmed_at' })
   confirmed_at: Date | null; // Fecha cuando se confirmó el email
 

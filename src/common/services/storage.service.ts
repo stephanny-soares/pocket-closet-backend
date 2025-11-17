@@ -39,10 +39,17 @@ export class StorageService {
 
 
       // Generar URL pública
-      const urlPublica = `https://storage.googleapis.com/${this.bucketName}/${nombreArchivo}`;
+      //const urlPublica = `https://storage.googleapis.com/${this.bucketName}/${nombreArchivo}`;
 
-      console.log(`Archivo subido: ${urlPublica}`);
-      return urlPublica;
+      const [urlFirmada] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 días
+      });
+// ✅ URL con firma temporal → Google Vision puede acceder
+
+      console.log(`Archivo subido: ${urlFirmada}`);
+      return urlFirmada;
     } catch (error) {
       console.error('Error subiendo archivo a Storage:', error);
       throw error;
