@@ -55,6 +55,32 @@ export class StorageService {
       throw error;
     }
   }
+  
+
+  /**
+   * Leer archivo de GCS como Base64 (para Vision API)
+   */
+  async leerArchivoComoBase64(urlArchivo: string): Promise<string> {
+    try {
+      // Extraer el nombre del archivo de la URL
+      const nombreArchivo = urlArchivo.split(`/${this.bucketName}/`)[1]?.split('?')[0];
+
+      if (!nombreArchivo) {
+        throw new Error('No se pudo extraer el nombre del archivo');
+      }
+
+      const bucket = this.storage.bucket(this.bucketName);
+      const [contenido] = await bucket.file(nombreArchivo).download();
+      
+      const base64 = contenido.toString('base64');
+      console.log(`✅ Base64 generado: ${nombreArchivo} (${base64.length} chars)`);
+      
+      return base64;
+    } catch (error) {
+      console.error('❌ Error leyendo archivo como Base64:', error);
+      throw error;
+    }
+  }
 
   /**
    * Eliminar archivo de Google Cloud Storage
