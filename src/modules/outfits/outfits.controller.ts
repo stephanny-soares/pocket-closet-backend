@@ -30,6 +30,43 @@ import { UpdateOutfitDto } from './dto/update-outfit.dto';
 export class OutfitsController {
   constructor(private readonly outfitsService: OutfitsService) {}
 
+   @Post('sugerir')
+  @ApiOperation({
+    summary: 'Sugerir outfits con IA',
+    description:
+      'Genera 3 sugerencias de outfits variados (casual, formal, deportivo) basadas en las prendas cargadas del usuario utilizando Gemini AI',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Outfits sugeridos exitosamente',
+    example: {
+      ok: true,
+      outfits: [
+        {
+          id: 'uuid-1',
+          nombre: 'Casual viernes',
+          categoria: 'casual',
+          estacion: 'todas',
+          prendas: [
+            { id: 'uuid-prenda-1', nombre: 'Camiseta azul', color: 'azul' },
+            { id: 'uuid-prenda-2', nombre: 'Pantalón negro', color: 'negro' },
+            { id: 'uuid-prenda-3', nombre: 'Zapatos blancos', color: 'blanco' },
+          ],
+          createdAt: '2025-11-20T22:45:00Z',
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Necesitas al menos 3 prendas para generar sugerencias',
+  })
+  async sugerir(@Req() req: Express.Request) {
+    const usuario = (req as any).user;
+    const outfits = await this.outfitsService.sugerirOutfits(usuario);
+    return { ok: true, outfits };
+  }
+
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo outfit',
