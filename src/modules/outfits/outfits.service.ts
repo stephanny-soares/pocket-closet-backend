@@ -8,12 +8,16 @@ import { Prenda } from '../../entities/prenda.entity';
 import { User } from '../../entities/user.entity';
 import { CreateOutfitDto } from './dto/create-outfit.dto';
 import { UpdateOutfitDto } from './dto/update-outfit.dto';
+import { CreateOutfitPorPrendaDto } from './dto/create-outfitPorPrenda.dto';
+import { CreateOutfitPorEventoDto } from './dto/create-outfitPorEvento.dto';
+import { CreateOutfitPorClimaDto } from './dto/create-outfitPorClima.dto';
 
 @Injectable()
 export class OutfitsService {
   private geminiApiKey: string;
   private storage: Storage;
-  private bucketName: string = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'pocketcloset-prendas';
+  private bucketName: string =
+    process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'pocketcloset-prendas';
 
   constructor(
     @InjectRepository(Outfit)
@@ -52,7 +56,10 @@ export class OutfitsService {
       console.log(`🌡️ Clima: ${clima.temperatura}°C, ${clima.condicion}`);
 
       // Generar sugerencias con Gemini considerando clima
-      const sugerencias = await this.generarSugerenciasConGemini(prendas, clima);
+      const sugerencias = await this.generarSugerenciasConGemini(
+        prendas,
+        clima,
+      );
 
       // Crear los outfits sugeridos en BD
       const outfitsCreados: Outfit[] = [];
@@ -111,7 +118,10 @@ export class OutfitsService {
   /**
    * Generar sugerencias con Gemini considerando CLIMA
    */
-  private async generarSugerenciasConGemini(prendas: Prenda[], clima: any): Promise<any[]> {
+  private async generarSugerenciasConGemini(
+    prendas: Prenda[],
+    clima: any,
+  ): Promise<any[]> {
     try {
       console.log('📤 Enviando solicitud a Gemini con info de clima...');
 
@@ -183,7 +193,8 @@ SOLO devuelve el array JSON, sin explicaciones.`;
       }
 
       const data = await response.json();
-      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const responseText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       console.log('📝 Respuesta de Gemini:', responseText.substring(0, 200));
 
@@ -268,7 +279,8 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
       }
 
       const data = await response.json();
-      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const responseText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       console.log('📝 Respuesta de Gemini:', responseText);
 
@@ -339,10 +351,14 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
    */
   private async descargarImagen(urlImagen: string): Promise<Buffer> {
     try {
-      console.log(`📥 Descargando imagen desde GCS: ${urlImagen.substring(0, 50)}...`);
-      
+      console.log(
+        `📥 Descargando imagen desde GCS: ${urlImagen.substring(0, 50)}...`,
+      );
+
       // Extraer el nombre del archivo de la URL
-      const nombreArchivo = urlImagen.split(`/${this.bucketName}/`)[1]?.split('?')[0];
+      const nombreArchivo = urlImagen
+        .split(`/${this.bucketName}/`)[1]
+        ?.split('?')[0];
 
       if (!nombreArchivo) {
         throw new Error('No se pudo extraer el nombre del archivo de la URL');
@@ -362,9 +378,13 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
   /**
    * Crear collage con Sharp
    */
-  private async crearCollageConSharp(bufersImagenes: Buffer[]): Promise<Buffer> {
+  private async crearCollageConSharp(
+    bufersImagenes: Buffer[],
+  ): Promise<Buffer> {
     try {
-      console.log(`🖼️ Creando collage con ${bufersImagenes.length} imágenes...`);
+      console.log(
+        `🖼️ Creando collage con ${bufersImagenes.length} imágenes...`,
+      );
 
       // Redimensionar todas las imágenes al mismo tamaño
       const tamanoPrenda = 200;
@@ -411,7 +431,9 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
       } else {
         // Layout grid para 4+ prendas
         console.log('📐 Layout: grid');
-        const columnasYFilas = Math.ceil(Math.sqrt(imagenesRedimensionadas.length));
+        const columnasYFilas = Math.ceil(
+          Math.sqrt(imagenesRedimensionadas.length),
+        );
 
         const composicion = imagenesRedimensionadas.map((img, idx) => {
           const fila = Math.floor(idx / columnasYFilas);
@@ -518,9 +540,8 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
     }
 
     // Generar imagen del outfit (collage)
-    const bufferImagen = await this.generarImagenOutfitConGemini(
-      prendasFinales,
-    );
+    const bufferImagen =
+      await this.generarImagenOutfitConGemini(prendasFinales);
 
     // Subir imagen a Storage
     const urlImagen = await this.subirImagenOutfitAStorage(bufferImagen);
@@ -571,9 +592,7 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
 
       return await this.outfitRepository.save(outfit);
     } catch (error) {
-      throw new BadRequestException(
-        `Error al crear outfit: ${error.message}`,
-      );
+      throw new BadRequestException(`Error al crear outfit: ${error.message}`);
     }
   }
 
@@ -689,5 +708,332 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
       relations: ['prendas'],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Crear outfit basado en una prenda seleccionada
+   */
+  async crearOutfitPorPrenda(
+    createOutfitDto: CreateOutfitPorPrendaDto,
+    usuario: User,
+  ): Promise<Outfit> {
+    try {
+      // Obtener la prenda seleccionada
+      const prendaBase = await this.prendaRepository.findOne({
+        where: { id: createOutfitDto.prendaId, usuario: { id: usuario.id } },
+      });
+
+      if (!prendaBase) {
+        throw new BadRequestException('Prenda no encontrada');
+      }
+
+      // Obtener todas las prendas del usuario
+      const todasPrendas = await this.prendaRepository.find({
+        where: { usuario: { id: usuario.id } },
+      });
+
+      if (todasPrendas.length < 2) {
+        throw new BadRequestException(
+          'Necesitas al menos 2 prendas para generar un outfit',
+        );
+      }
+
+      // Usar Gemini para seleccionar las mejores prendas para complementar
+      const prendasSeleccionadas =
+        await this.seleccionarMejoresPrendasConGemini(
+          todasPrendas,
+          {
+            nombre: prendaBase.nombre,
+            categoria: createOutfitDto.categoria || 'casual',
+          },
+          3,
+        );
+
+      // Generar imagen del outfit
+      const bufferImagen =
+        await this.generarImagenOutfitConGemini(prendasSeleccionadas);
+
+      // Subir imagen a Storage
+      const urlImagen = await this.subirImagenOutfitAStorage(bufferImagen);
+
+      // Crear outfit
+      const outfit = this.outfitRepository.create({
+        nombre: `Outfit con ${prendaBase.nombre}`,
+        categoria: createOutfitDto.categoria || 'casual',
+        estacion: createOutfitDto.estacion || 'todas',
+        prendas: prendasSeleccionadas,
+        usuario,
+        imagen: urlImagen,
+      });
+
+      return await this.outfitRepository.save(outfit);
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al crear outfit por prenda: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Crear outfit basado en un evento
+   */
+  async crearOutfitPorEvento(
+    createOutfitDto: CreateOutfitPorEventoDto,
+    usuario: User,
+  ): Promise<Outfit> {
+    try {
+      // Obtener todas las prendas del usuario
+      const prendas = await this.prendaRepository.find({
+        where: { usuario: { id: usuario.id } },
+      });
+
+      if (prendas.length < 2) {
+        throw new BadRequestException(
+          'Necesitas al menos 2 prendas para generar un outfit',
+        );
+      }
+
+      console.log(
+        `🎉 === GENERANDO OUTFIT PARA EVENTO: ${createOutfitDto.evento.toUpperCase()} ===`,
+      );
+
+      // Usar Gemini para sugerir outfit basado en el evento
+      const sugerencia = await this.sugerirOutfitPorEvento(
+        prendas,
+        createOutfitDto.evento,
+        createOutfitDto.categoria,
+      );
+
+      // Seleccionar prendas
+      const prendasSeleccionadas =
+        await this.seleccionarMejoresPrendasConGemini(prendas, sugerencia, 3);
+
+      // Generar imagen del outfit
+      const bufferImagen =
+        await this.generarImagenOutfitConGemini(prendasSeleccionadas);
+
+      // Subir imagen a Storage
+      const urlImagen = await this.subirImagenOutfitAStorage(bufferImagen);
+
+      // Crear outfit
+      const outfit = this.outfitRepository.create({
+        nombre: sugerencia.nombre,
+        categoria:
+          sugerencia.categoria || createOutfitDto.categoria || 'casual',
+        estacion: createOutfitDto.estacion || 'todas',
+        prendas: prendasSeleccionadas,
+        usuario,
+        imagen: urlImagen,
+      });
+
+      return await this.outfitRepository.save(outfit);
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al crear outfit por evento: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Sugerir outfit basado en evento con Gemini
+   */
+  private async sugerirOutfitPorEvento(
+    prendas: Prenda[],
+    evento: string,
+    categoriaHint?: string,
+  ): Promise<any> {
+    try {
+      const listaPrendas = prendas
+        .map(
+          (p, i) =>
+            `${i + 1}. ${p.nombre} (tipo: ${p.tipo}, color: ${p.color}, sección: ${p.seccion})`,
+        )
+        .join('\n');
+
+      const prompt = `Eres un experto en moda. El usuario quiere crear un outfit para: **${evento}**
+
+Prendas disponibles:
+${listaPrendas}
+
+Sugiere un outfit que sea apropiado para este evento. Responde con JSON:
+{
+  "nombre": "nombre descriptivo del outfit",
+  "categoria": "casual|formal|deporte|elegante",
+  "prendas": ["nombre prenda 1", "nombre prenda 2", "nombre prenda 3"]
+}`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const responseText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Respuesta inválida de Gemini');
+      }
+
+      return JSON.parse(jsonMatch[0]);
+    } catch (error: any) {
+      console.error('❌ ERROR en sugerirOutfitPorEvento:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Crear outfit basado en clima actual
+   */
+  async crearOutfitPorClima(
+    createOutfitDto: CreateOutfitPorClimaDto,
+    usuario: User,
+  ): Promise<Outfit> {
+    try {
+      // Obtener todas las prendas del usuario
+      const prendas = await this.prendaRepository.find({
+        where: { usuario: { id: usuario.id } },
+      });
+
+      if (prendas.length < 2) {
+        throw new BadRequestException(
+          'Necesitas al menos 2 prendas para generar un outfit',
+        );
+      }
+
+      // Obtener clima actual
+      const clima = createOutfitDto.temperatura
+        ? { temperatura: createOutfitDto.temperatura, condicion: 'Custom' }
+        : await this.obtenerClima();
+
+      console.log(
+        `🌡️ === GENERANDO OUTFIT PARA CLIMA: ${clima.temperatura}°C ===`,
+      );
+
+      // Generar sugerencia considerando clima
+      const sugerencia = await this.sugerirOutfitPorClima(
+        prendas,
+        clima,
+        createOutfitDto.categoria,
+      );
+
+      // Seleccionar prendas
+      const prendasSeleccionadas =
+        await this.seleccionarMejoresPrendasConGemini(prendas, sugerencia, 3);
+
+      // Generar imagen del outfit
+      const bufferImagen =
+        await this.generarImagenOutfitConGemini(prendasSeleccionadas);
+
+      // Subir imagen a Storage
+      const urlImagen = await this.subirImagenOutfitAStorage(bufferImagen);
+
+      // Crear outfit
+      const outfit = this.outfitRepository.create({
+        nombre: sugerencia.nombre,
+        categoria:
+          sugerencia.categoria || createOutfitDto.categoria || 'casual',
+        estacion: 'todas',
+        prendas: prendasSeleccionadas,
+        usuario,
+        imagen: urlImagen,
+      });
+
+      return await this.outfitRepository.save(outfit);
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al crear outfit por clima: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Sugerir outfit basado en clima con Gemini
+   */
+  private async sugerirOutfitPorClima(
+    prendas: Prenda[],
+    clima: any,
+    categoriaHint?: string,
+  ): Promise<any> {
+    try {
+      const listaPrendas = prendas
+        .map(
+          (p, i) =>
+            `${i + 1}. ${p.nombre} (tipo: ${p.tipo}, color: ${p.color}, sección: ${p.seccion})`,
+        )
+        .join('\n');
+
+      const prompt = `Eres un experto en moda. El clima actual es: ${clima.temperatura}°C, ${clima.condicion}
+
+Prendas disponibles:
+${listaPrendas}
+
+Sugiere un outfit que sea apropiado para este clima y sea cómodo. Responde con JSON:
+{
+  "nombre": "nombre descriptivo del outfit",
+  "categoria": "${categoriaHint || 'casual'}",
+  "prendas": ["nombre prenda 1", "nombre prenda 2", "nombre prenda 3"]
+}`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: prompt,
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const responseText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Respuesta inválida de Gemini');
+      }
+
+      return JSON.parse(jsonMatch[0]);
+    } catch (error: any) {
+      console.error('❌ ERROR en sugerirOutfitPorClima:', error.message);
+      throw error;
+    }
   }
 }

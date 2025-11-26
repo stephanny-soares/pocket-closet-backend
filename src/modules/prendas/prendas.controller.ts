@@ -16,10 +16,16 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { PrendasService } from './prendas.service';
 import { CreatePrendaDto } from './dto/create-prenda.dto';
 import { UpdatePrendaDto } from './dto/update-prenda.dto';
-import {ApiTags,ApiOperation,ApiResponse,ApiBody,ApiParam,ApiBearerAuth, ApiConsumes,} from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+  ApiBearerAuth,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-
-
 
 @ApiTags('prendas')
 @Controller('api/prendas')
@@ -31,8 +37,9 @@ export class PrendasController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('archivo'))
   @ApiOperation({
-    summary: 'Subir imagen de prenda desde dispositivo/móvil',
-    description: 'Carga una imagen del dispositivo, la sube a Cloud Storage y crea la prenda automáticamente',
+    summary: 'Clasificar imagen de prenda (sin guardar)',
+    description:
+      'Carga una imagen, la sube a Cloud Storage y clasifica con IA. El usuario revisa y decide si guardar.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -48,31 +55,23 @@ export class PrendasController {
           type: 'string',
           description: 'Marca de la prenda (opcional)',
         },
-        ocasion: {
-          type: 'string',
-          description: 'casual, formal, deporte, etc. (opcional)',
-        },
-        estacion: {
-          type: 'string',
-          description: 'verano, invierno, primavera, otoño (opcional)',
-        },
       },
       required: ['archivo'],
     },
   })
   @ApiResponse({
     status: 201,
-    description: 'Prenda creada desde imagen',
+    description: 'Clasificación exitosa (sin guardar en BD)',
     example: {
       ok: true,
-      prenda: {
-        id: 'uuid',
+      urlImagen: 'https://storage.googleapis.com/...',
+      clasificacion: {
         nombre: 'Camiseta azul',
         tipo: 'camiseta',
         color: 'azul',
-        imagen: 'https://storage.googleapis.com/...',
         seccion: 'superior',
-        createdAt: '2025-11-13T14:30:00Z',
+        estacion: 'verano',
+        ocasion: 'casual',
       },
     },
   })
@@ -86,16 +85,14 @@ export class PrendasController {
     }
 
     const usuario = (req as any).user;
-    const prenda = await this.prendasService.crearPrendaDesdeArchivo(
+    const resultado = await this.prendasService.clasificarPrendaDesdeArchivo(
       archivo,
       {
         marca: body.marca,
-        ocasion: body.ocasion,
-        estacion: body.estacion,
       },
       usuario,
     );
-    return { ok: true, prenda };
+    return { ok: true, ...resultado };
   }
 
   @Post()
@@ -104,12 +101,13 @@ export class PrendasController {
     description: 'Crea prenda y IA clasifica según imagen',
   })
   @ApiBody({
-  schema: {  
-    example: {
-      imagen: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
+    schema: {
+      example: {
+        imagen:
+          'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
+      },
     },
-  },
-})
+  })
   @ApiResponse({
     status: 201,
     description: 'Prenda creada y clasificada automáticamente por IA',
@@ -117,16 +115,17 @@ export class PrendasController {
       ok: true,
       prenda: {
         id: 'uuid',
-        imagen: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
+        imagen:
+          'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
         // CLASIFICADO POR IA AUTOMÁTICAMENTE:
-      nombre: 'Camiseta',
-      tipo: 'camiseta',
-      color: 'azul',
-      marca: 'Nike',
-      ocasion: 'casual',
-      estacion: 'primavera',
-      seccion: 'superior',
-      created_at: '2025-01-15T10:30:00Z',
+        nombre: 'Camiseta',
+        tipo: 'camiseta',
+        color: 'azul',
+        marca: 'Nike',
+        ocasion: 'casual',
+        estacion: 'primavera',
+        seccion: 'superior',
+        created_at: '2025-01-15T10:30:00Z',
       },
     },
   })
@@ -183,10 +182,7 @@ export class PrendasController {
     status: 404,
     description: 'Prenda no encontrada',
   })
-  async obtenerPorId(
-    @Param('id') id: string,
-    @Req() req: Express.Request,
-  ) {
+  async obtenerPorId(@Param('id') id: string, @Req() req: Express.Request) {
     const usuario = (req as any).user;
     const prenda = await this.prendasService.obtenerPrendaPorId(id, usuario);
     return { ok: true, prenda };
@@ -201,13 +197,13 @@ export class PrendasController {
     summary: 'Actualizar prenda',
   })
   @ApiBody({
-  schema: {  
-    example: {
-      nombre: 'Camiseta Azul Oscuro',
-      color: 'azul oscuro',
+    schema: {
+      example: {
+        nombre: 'Camiseta Azul Oscuro',
+        color: 'azul oscuro',
+      },
     },
-  },
-})
+  })
   @ApiResponse({
     status: 200,
     description: 'Prenda actualizada',
@@ -227,7 +223,7 @@ export class PrendasController {
   }
 
   @Delete(':id')
-   @ApiParam({
+  @ApiParam({
     name: 'id',
     example: 'uuid-1',
   })
@@ -242,10 +238,7 @@ export class PrendasController {
       message: 'Prenda eliminada',
     },
   })
-  async eliminar(
-    @Param('id') id: string,
-    @Req() req: Express.Request,
-  ) {
+  async eliminar(@Param('id') id: string, @Req() req: Express.Request) {
     const usuario = (req as any).user;
     await this.prendasService.eliminarPrenda(id, usuario);
     return { ok: true, message: 'Prenda eliminada' };

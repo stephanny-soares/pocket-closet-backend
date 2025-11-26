@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { LoggerService } from './common/logger/logger.service'; 
+import { LoggerService } from './common/logger/logger.service';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
@@ -20,7 +20,9 @@ async function bootstrap() {
   // SWAGGER SETUP (NUEVO)
   const config = new DocumentBuilder()
     .setTitle('PocketCloset API')
-    .setDescription('API de gestión inteligente de guardarropa con clasificación por IA')
+    .setDescription(
+      'API de gestión inteligente de guardarropa con clasificación por IA',
+    )
     .setVersion('1.0.0')
     .addBearerAuth()
     .addTag('auth', 'Autenticación de usuarios')
@@ -34,8 +36,6 @@ async function bootstrap() {
   // Registrar el filtro global
   app.useGlobalFilters(new HttpExceptionFilter(logger));
   //app.useGlobalGuards(new JwtAuthGuard());
-  
-
 
   await app.listen(process.env.PORT || 5000, '0.0.0.0');
   console.log(`Server running on port ${process.env.PORT || 5000}`); // Solo desarrollo `0.0.0.0`

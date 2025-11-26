@@ -5,15 +5,13 @@ import { AppController } from './app.controller';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
-import { LoggerModule } from './common/logger/logger.module';  // usae el módulo en lugar del provider directo
+import { LoggerModule } from './common/logger/logger.module'; // usae el módulo en lugar del provider directo
 import { PrendasModule } from './modules/prendas/prendas.module';
 import { User } from './entities/user.entity';
 import { Prenda } from './entities/prenda.entity';
 import { RedisModule } from './common/redis/redis.module';
 import { AuditoriaUsuario } from './entities/auditoria-usuario.entity';
 import { OutfitsModule } from './modules/outfits/outfits.module';
-
-
 
 @Module({
   imports: [
@@ -40,9 +38,7 @@ import { OutfitsModule } from './modules/outfits/outfits.module';
   //providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros
 })
 export class AppModule implements NestModule {
-   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(RequestLoggerMiddleware)
-      .forRoutes('*'); // Middleware aplicado a todas las rutas
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*'); // Middleware aplicado a todas las rutas
   }
 }

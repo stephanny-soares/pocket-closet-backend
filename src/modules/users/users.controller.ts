@@ -2,14 +2,13 @@ import { Controller, Get, Post, Body } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
-
 @ApiTags('users')
 @Controller('api/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-   @ApiOperation({
+  @ApiOperation({
     summary: 'Obtener todos los usuarios',
   })
   @ApiResponse({
@@ -28,19 +27,19 @@ export class UsersController {
     return { ok: true, usuarios };
   }
 
-   @Post()
-   @ApiOperation({
+  @Post()
+  @ApiOperation({
     summary: 'Crear nuevo usuario',
   })
   @ApiBody({
-  schema: {  
-    example: {
-      name: 'Nuevo Usuario',
-      email: 'nuevo@example.com',
-      password: 'password123!',
+    schema: {
+      example: {
+        name: 'Nuevo Usuario',
+        email: 'nuevo@example.com',
+        password: 'password123!',
+      },
     },
-  },
-})
+  })
   @ApiResponse({
     status: 201,
     description: 'Usuario creado',

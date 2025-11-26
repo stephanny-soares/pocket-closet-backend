@@ -23,7 +23,7 @@ export class UsersService {
 
   async obtenerUsuarios(): Promise<Partial<User>[]> {
     const usuarios = await this.userRepository.find();
-    return usuarios.map(u => ({
+    return usuarios.map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,

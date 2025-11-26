@@ -20,6 +20,45 @@ export class PrendasService {
   }
 
   /**
+   * Clasificar prenda desde archivo SIN guardar en BD
+   * Devuelve la clasificación para que el usuario confirme
+   */
+  async clasificarPrendaDesdeArchivo(
+    archivo: Express.Multer.File,
+    datosAdicionales: any,
+    usuario: User,
+  ): Promise<any> {
+    try {
+      // Validar que sea imagen
+      if (!archivo.mimetype.startsWith('image/')) {
+        throw new BadRequestException('El archivo debe ser una imagen');
+      }
+
+      // Subir a Google Cloud Storage
+      const urlImagen = await this.servicioAlmacenamiento.subirArchivo(archivo);
+      console.log('✅ Imagen subida a Storage');
+
+      // Convertir a base64
+      const base64 =
+        await this.servicioAlmacenamiento.leerArchivoComoBase64(urlImagen);
+
+      // Clasificar con Gemini
+      const clasificacion = await this.clasificarImagen(base64);
+      console.log('✅ Clasificación recibida:', clasificacion);
+
+      // Devolver clasificación + URL de imagen (SIN crear en BD)
+      return {
+        urlImagen,
+        clasificacion,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al procesar archivo: ${error.message}`,
+      );
+    }
+  }
+
+  /**
    * Crear prenda desde archivo subido (desde móvil/dispositivo)
    */
   async crearPrendaDesdeArchivo(

@@ -22,6 +22,9 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { OutfitsService } from './outfits.service';
 import { CreateOutfitDto } from './dto/create-outfit.dto';
 import { UpdateOutfitDto } from './dto/update-outfit.dto';
+import { CreateOutfitPorPrendaDto } from './dto/create-outfitPorPrenda.dto';
+import { CreateOutfitPorEventoDto } from './dto/create-outfitPorEvento.dto';
+import { CreateOutfitPorClimaDto } from './dto/create-outfitPorClima.dto';
 
 @ApiTags('outfits')
 @Controller('api/outfits')
@@ -30,7 +33,7 @@ import { UpdateOutfitDto } from './dto/update-outfit.dto';
 export class OutfitsController {
   constructor(private readonly outfitsService: OutfitsService) {}
 
-   @Post('sugerir')
+  @Post('sugerir')
   @ApiOperation({
     summary: 'Sugerir outfits con IA',
     description:
@@ -67,10 +70,162 @@ export class OutfitsController {
     return { ok: true, outfits };
   }
 
+  @Post('por-prenda')
+  @ApiOperation({
+    summary: 'Crear outfit por prenda',
+    description:
+      'Crea un outfit basado en una prenda seleccionada, IA completa el resto',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        prendaId: '550e8400-e29b-41d4-a716-446655440000',
+        categoria: 'casual',
+        estacion: 'verano',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Outfit creado exitosamente',
+    example: {
+      ok: true,
+      outfit: {
+        id: 'uuid',
+        nombre: 'Outfit con Camiseta azul',
+        imagen: 'https://...',
+        categoria: 'casual',
+        estacion: 'todas',
+        prendas: [
+          { id: 'uuid-1', nombre: 'Camiseta azul', imagen: '...' },
+          { id: 'uuid-2', nombre: 'Pantalón negro', imagen: '...' },
+          { id: 'uuid-3', nombre: 'Zapatos blancos', imagen: '...' },
+        ],
+        createdAt: '2025-11-25T14:30:00Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Prenda no encontrada o necesitas al menos 2 prendas',
+  })
+  async crearPorPrenda(
+    @Body() createOutfitDto: CreateOutfitPorPrendaDto,
+    @Req() req: Express.Request,
+  ) {
+    const usuario = (req as any).user;
+    const outfit = await this.outfitsService.crearOutfitPorPrenda(
+      createOutfitDto,
+      usuario,
+    );
+    return { ok: true, outfit };
+  }
+
+  @Post('por-evento')
+  @ApiOperation({
+    summary: 'Crear outfit por evento',
+    description:
+      'Crea un outfit basado en un evento específico (boda, trabajo, gym, etc)',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        evento: 'boda',
+        categoria: 'formal',
+        estacion: 'todas',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Outfit creado exitosamente',
+    example: {
+      ok: true,
+      outfit: {
+        id: 'uuid',
+        nombre: 'Outfit elegante para boda',
+        imagen: 'https://...',
+        categoria: 'formal',
+        estacion: 'todas',
+        prendas: [
+          { id: 'uuid-1', nombre: 'Vestido negro', imagen: '...' },
+          { id: 'uuid-2', nombre: 'Tacones plateados', imagen: '...' },
+          { id: 'uuid-3', nombre: 'Collar de perlas', imagen: '...' },
+        ],
+        createdAt: '2025-11-25T14:30:00Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Necesitas al menos 2 prendas para generar un outfit',
+  })
+  async crearPorEvento(
+    @Body() createOutfitDto: CreateOutfitPorEventoDto,
+    @Req() req: Express.Request,
+  ) {
+    const usuario = (req as any).user;
+    const outfit = await this.outfitsService.crearOutfitPorEvento(
+      createOutfitDto,
+      usuario,
+    );
+    return { ok: true, outfit };
+  }
+
+  @Post('por-clima')
+  @ApiOperation({
+    summary: 'Crear outfit por clima',
+    description: 'Crea un outfit basado en el clima actual de Alicante',
+  })
+  @ApiBody({
+    schema: {
+      example: {
+        categoria: 'casual',
+        temperatura: 25,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Outfit creado exitosamente',
+    example: {
+      ok: true,
+      outfit: {
+        id: 'uuid',
+        nombre: 'Outfit ligero para clima cálido',
+        imagen: 'https://...',
+        categoria: 'casual',
+        estacion: 'todas',
+        prendas: [
+          { id: 'uuid-1', nombre: 'Camiseta blanca', imagen: '...' },
+          { id: 'uuid-2', nombre: 'Pantalones cortos', imagen: '...' },
+          { id: 'uuid-3', nombre: 'Sandalias', imagen: '...' },
+        ],
+        createdAt: '2025-11-25T14:30:00Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Necesitas al menos 2 prendas para generar un outfit',
+  })
+  async crearPorClima(
+    @Body() createOutfitDto: CreateOutfitPorClimaDto,
+    @Req() req: Express.Request,
+  ) {
+    const usuario = (req as any).user;
+    const outfit = await this.outfitsService.crearOutfitPorClima(
+      createOutfitDto,
+      usuario,
+    );
+    return { ok: true, outfit };
+  }
+
   @Post()
   @ApiOperation({
     summary: 'Crear nuevo outfit',
-    description: 'Crea un nuevo outfit asociando prendas del usuario',
+    description:
+      'Crea un nuevo outfit asociando prendas del usuario manualmente',
   })
   @ApiBody({
     schema: {
@@ -108,7 +263,10 @@ export class OutfitsController {
     @Req() req: Express.Request,
   ) {
     const usuario = (req as any).user;
-    const outfit = await this.outfitsService.crearOutfit(createOutfitDto, usuario);
+    const outfit = await this.outfitsService.crearOutfit(
+      createOutfitDto,
+      usuario,
+    );
     return { ok: true, outfit };
   }
 
@@ -129,9 +287,7 @@ export class OutfitsController {
           imagen: '...',
           categoria: 'casual',
           estacion: 'primavera',
-          prendas: [
-            { id: 'uuid', nombre: 'Camiseta', imagen: '...' },
-          ],
+          prendas: [{ id: 'uuid', nombre: 'Camiseta', imagen: '...' }],
           createdAt: '2025-11-13T13:30:00Z',
         },
       ],
@@ -209,10 +365,7 @@ export class OutfitsController {
     status: 404,
     description: 'Outfit no encontrado',
   })
-  async obtenerPorId(
-    @Param('id') id: string,
-    @Req() req: Express.Request,
-  ) {
+  async obtenerPorId(@Param('id') id: string, @Req() req: Express.Request) {
     const usuario = (req as any).user;
     const outfit = await this.outfitsService.obtenerOutfitPorId(id, usuario);
     return { ok: true, outfit };
@@ -269,10 +422,7 @@ export class OutfitsController {
       message: 'Outfit eliminado',
     },
   })
-  async eliminar(
-    @Param('id') id: string,
-    @Req() req: Express.Request,
-  ) {
+  async eliminar(@Param('id') id: string, @Req() req: Express.Request) {
     const usuario = (req as any).user;
     await this.outfitsService.eliminarOutfit(id, usuario);
     return { ok: true, message: 'Outfit eliminado' };
