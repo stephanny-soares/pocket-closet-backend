@@ -27,7 +27,10 @@ export class PrendasService {
     archivo: Express.Multer.File,
     datosAdicionales: any,
     usuario: User,
-  ): Promise<any> {
+  ): Promise<{
+    urlImagen: string;
+    clasificacion: any;
+  }> {
     try {
       // Validar que sea imagen
       if (!archivo.mimetype.startsWith('image/')) {
@@ -51,7 +54,7 @@ export class PrendasService {
         urlImagen,
         clasificacion,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException(
         `Error al procesar archivo: ${error.message}`,
       );
@@ -102,12 +105,51 @@ export class PrendasService {
       });
 
       return await this.prendaRepository.save(prenda);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException(
         `Error al procesar archivo: ${error.message}`,
       );
     }
   }
+
+  /**
+   * Analizar imagen desde URL/base64 y crear prenda (endpoint /api/prendas POST)
+   */
+  async crearPrendaDesdeImagen(
+    crearPrendaDto: CreatePrendaDto,
+    usuario: User,
+  ): Promise<Prenda> {
+    try {
+      if (!crearPrendaDto.imagen) {
+        throw new BadRequestException('La imagen es obligatoria');
+      }
+
+      // ❗ NO CLASIFICAMOS AQUÍ
+      // Los datos vienen YA clasificados desde /upload
+
+      const prenda = this.prendaRepository.create({
+        nombre: crearPrendaDto.nombre,
+        tipo: crearPrendaDto.tipo,
+        color: crearPrendaDto.color,
+        imagen: crearPrendaDto.imagen,
+        marca: crearPrendaDto.marca || '',
+        ocasion: crearPrendaDto.ocasion,
+        estacion: crearPrendaDto.estacion,
+        usuario,
+        metadatos: {
+          procesadoPor: 'Gemini',
+          origen: 'Clasificación previa en /upload',
+        },
+      });
+
+      return await this.prendaRepository.save(prenda);
+    } catch (error: any) {
+      throw new BadRequestException(
+        `Error al crear prenda: ${error.message}`,
+      );
+    }
+  }
+
 
   /**
    * Clasificar imagen con Gemini (fetch directo a API)
@@ -127,7 +169,7 @@ export class PrendasService {
   "seccion": "inferior"
 }`;
 
-      console.log('📤 Enviando a Gemini API...');
+      console.log('📤 Enviando a Gemini API.');
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${this.geminiApiKey}`,
@@ -157,7 +199,7 @@ export class PrendasService {
       );
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => null);
         console.error('❌ Error de Gemini:', errorData);
         throw new Error(`Gemini API error: ${response.status}`);
       }
@@ -169,7 +211,7 @@ export class PrendasService {
         data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       console.log('📝 Contenido:', responseText.substring(0, 200));
 
-      // Parsear JSON
+      // Intentar extraer un JSON
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('❌ No se encontró JSON en la respuesta');
@@ -202,39 +244,6 @@ export class PrendasService {
   }
 
   /**
-   * Analizar imagen con Gemini y crear prenda
-   */
-  async crearPrendaDesdeImagen(
-    crearPrendaDto: CreatePrendaDto,
-    usuario: User,
-  ): Promise<Prenda> {
-    try {
-      const clasificacion = await this.clasificarImagen(crearPrendaDto.imagen);
-
-      const prenda = this.prendaRepository.create({
-        nombre: crearPrendaDto.nombre || clasificacion.nombre,
-        tipo: crearPrendaDto.tipo || clasificacion.tipo,
-        color: crearPrendaDto.color || clasificacion.color,
-        seccion: clasificacion.seccion,
-        imagen: crearPrendaDto.imagen,
-        marca: crearPrendaDto.marca,
-        ocasion: crearPrendaDto.ocasion || clasificacion.ocasion,
-        estacion: crearPrendaDto.estacion || clasificacion.estacion,
-        usuario,
-        metadatos: {
-          procesadoPor: 'Gemini',
-        },
-      });
-
-      return await this.prendaRepository.save(prenda);
-    } catch (error) {
-      throw new BadRequestException(
-        `Error al procesar imagen: ${error.message}`,
-      );
-    }
-  }
-
-  /**
    * Obtener prendas filtradas por sección
    */
   async obtenerPrendasPorSeccion(
@@ -254,7 +263,7 @@ export class PrendasService {
   async obtenerPrendas(usuario: User): Promise<Prenda[]> {
     return await this.prendaRepository.find({
       where: { usuario: { id: usuario.id } },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC' }, // 👈 usamos "order", NO "orderBy"
     });
   }
 

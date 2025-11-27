@@ -29,7 +29,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('prendas')
 @Controller('api/prendas')
-@ApiBearerAuth() // ← ESTO INDICA QUE NECESITA JWT
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 export class PrendasController {
   constructor(private readonly prendasService: PrendasService) {}
@@ -92,13 +92,15 @@ export class PrendasController {
       },
       usuario,
     );
+
+    // 👇 aquí estaba el error (".resultado"), ahora devolvemos el objeto correctamente
     return { ok: true, ...resultado };
   }
 
   @Post()
   @ApiOperation({
     summary: 'Crear nueva prenda',
-    description: 'Crea prenda y IA clasifica según imagen',
+    description: 'Crea prenda y la IA clasifica según la imagen',
   })
   @ApiBody({
     schema: {
@@ -117,7 +119,6 @@ export class PrendasController {
         id: 'uuid',
         imagen:
           'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
-        // CLASIFICADO POR IA AUTOMÁTICAMENTE:
         nombre: 'Camiseta',
         tipo: 'camiseta',
         color: 'azul',
