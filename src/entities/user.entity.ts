@@ -1,6 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { Prenda } from './prenda.entity';
 import { Outfit } from './outfit.entity';
+import { Evento } from './evento.entity';
 
 @Entity('users')
 export class User {
@@ -16,11 +23,11 @@ export class User {
   @Column()
   password_hash: string;
 
-   @Column({ default: true, name: 'is_active' })
+  @Column({ default: true, name: 'is_active' })
   is_active: boolean; // PC-74: Verificar que la cuenta esté activa
 
   // true para desarrollo
-  @Column({ default: true, name: 'email_confirmed' }) 
+  @Column({ default: true, name: 'email_confirmed' })
   email_confirmed: boolean; // PC-77: Verificar que el email esté confirmado
 
   @Column({ nullable: true })
@@ -37,4 +44,7 @@ export class User {
 
   @OneToMany(() => Outfit, (outfit) => outfit.usuario)
   outfits: Outfit[];
+
+  @OneToMany(() => Evento, (evento) => evento.usuario, { cascade: true })
+  eventos: Evento[];
 }

@@ -12,6 +12,7 @@ import { Prenda } from './entities/prenda.entity';
 import { RedisModule } from './common/redis/redis.module';
 import { AuditoriaUsuario } from './entities/auditoria-usuario.entity';
 import { OutfitsModule } from './modules/outfits/outfits.module';
+import { EventosModule } from './modules/eventos/eventos.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { OutfitsModule } from './modules/outfits/outfits.module';
     AuthModule,
     PrendasModule, // 👈 ESTE IMPORT ES CLAVE
     OutfitsModule,
+    EventosModule,
   ],
   controllers: [AppController],
   //providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros
