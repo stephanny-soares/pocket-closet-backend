@@ -1,8 +1,8 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateOutfitPorEventoDto {
-  @IsString()
-  evento: string;
+  @IsUUID('4')
+  eventoId: string;
 
   @IsOptional()
   @IsString()

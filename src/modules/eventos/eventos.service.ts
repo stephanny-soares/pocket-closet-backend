@@ -25,6 +25,9 @@ export class EventosService {
         nombre: createEventoDto.nombre,
         fecha: createEventoDto.fecha,
         descripcion: createEventoDto.descripcion,
+        tipo: createEventoDto.tipo,
+        ubicacion: createEventoDto.ubicacion,
+        ciudad: createEventoDto.ciudad,
         usuario,
       });
 

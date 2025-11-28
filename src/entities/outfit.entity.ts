@@ -7,9 +7,11 @@ import {
   ManyToOne,
   ManyToMany,
   JoinTable,
+  JoinColumn,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Prenda } from './prenda.entity';
+import { Evento } from './evento.entity';
 
 @Entity('outfits')
 export class Outfit {
@@ -38,6 +40,10 @@ export class Outfit {
 
   @ManyToOne(() => User, (user) => user.outfits, { onDelete: 'CASCADE' })
   usuario: User;
+
+  @ManyToOne(() => Evento, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'evento_id' })
+  evento?: Evento;
 
   @CreateDateColumn()
   createdAt: Date;

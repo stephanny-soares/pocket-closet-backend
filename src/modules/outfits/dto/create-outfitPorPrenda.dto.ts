@@ -11,4 +11,8 @@ export class CreateOutfitPorPrendaDto {
   @IsOptional()
   @IsString()
   estacion?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  eventoId?: string;
 }

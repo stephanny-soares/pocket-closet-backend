@@ -41,6 +41,9 @@ export class EventosController {
         nombre: 'Boda de María',
         fecha: '2025-12-15',
         descripcion: 'Ceremonia a las 14:00 en el jardín',
+        tipo: 'boda',
+        ubicacion: 'Jardín principal del hotel',
+        ciudad: 'Madrid',
       },
     },
   })
@@ -54,7 +57,11 @@ export class EventosController {
         nombre: 'Boda de María',
         fecha: '2025-12-15',
         descripcion: 'Ceremonia a las 14:00 en el jardín',
+        tipo: 'boda',
+        ubicacion: 'Jardín principal del hotel',
+        ciudad: 'Madrid',
         createdAt: '2025-11-27T10:30:00Z',
+        updatedAt: '2025-11-27T10:30:00Z',
       },
     },
   })
@@ -90,7 +97,11 @@ export class EventosController {
           nombre: 'Boda de María',
           fecha: '2025-12-15',
           descripcion: 'Ceremonia en el jardín',
+          tipo: 'boda',
+          ubicacion: 'Jardín principal del hotel',
+          ciudad: 'Madrid',
           createdAt: '2025-11-27T10:30:00Z',
+          updatedAt: '2025-11-27T10:30:00Z',
         },
       ],
     },
@@ -162,12 +173,29 @@ export class EventosController {
         nombre: 'Boda de María ACTUALIZADO',
         fecha: '2025-12-16',
         descripcion: 'Cambio de fecha',
+        tipo: 'boda',
+        ubicacion: 'Salón de eventos nuevo',
+        ciudad: 'Barcelona',
       },
     },
   })
   @ApiResponse({
     status: 200,
     description: 'Evento actualizado',
+    example: {
+      ok: true,
+      evento: {
+        id: 'uuid-1',
+        nombre: 'Boda de María ACTUALIZADO',
+        fecha: '2025-12-16',
+        descripcion: 'Cambio de fecha',
+        tipo: 'boda',
+        ubicacion: 'Salón de eventos nuevo',
+        ciudad: 'Barcelona',
+        createdAt: '2025-11-27T10:30:00Z',
+        updatedAt: '2025-11-27T11:45:00Z',
+      },
+    },
   })
   async actualizar(
     @Param('id') id: string,

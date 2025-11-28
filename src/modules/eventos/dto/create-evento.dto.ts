@@ -10,4 +10,16 @@ export class CreateEventoDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  @IsOptional()
+  @IsString()
+  tipo?: string; // "boda", "cumpleaños", "trabajo", "casual", etc.
+
+  @IsOptional()
+  @IsString()
+  ubicacion?: string; // "salón", "jardín", "playa", "restaurante"
+
+  @IsOptional()
+  @IsString()
+  ciudad?: string; // "Buenos Aires", "Madrid", "Alicante"
 }

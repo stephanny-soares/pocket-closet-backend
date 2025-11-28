@@ -11,6 +11,7 @@ import { UpdateOutfitDto } from './dto/update-outfit.dto';
 import { CreateOutfitPorPrendaDto } from './dto/create-outfitPorPrenda.dto';
 import { CreateOutfitPorEventoDto } from './dto/create-outfitPorEvento.dto';
 import { CreateOutfitPorClimaDto } from './dto/create-outfitPorClima.dto';
+import { Evento } from '../../entities/evento.entity';
 
 @Injectable()
 export class OutfitsService {
@@ -24,6 +25,8 @@ export class OutfitsService {
     private readonly outfitRepository: Repository<Outfit>,
     @InjectRepository(Prenda)
     private readonly prendaRepository: Repository<Prenda>,
+    @InjectRepository(Evento)
+    private readonly eventoRepository: Repository<Evento>,
   ) {
     this.geminiApiKey = process.env.GOOGLE_GEMINI_API_KEY || '';
     this.storage = new Storage({
@@ -738,6 +741,32 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
         );
       }
 
+      // ✅ Si hay eventoId, obtener contexto del evento
+      let evento: any = null;
+      let estacion = createOutfitDto.estacion || 'todas';
+      let clima: any = null;
+
+      if (createOutfitDto.eventoId) {
+        evento = await this.eventoRepository.findOne({
+          where: { id: createOutfitDto.eventoId, usuario: { id: usuario.id } },
+        });
+
+        if (evento) {
+          // Calcular estación considerando hemisferio
+          estacion = this.calcularEstacionPorUbicacion(
+            evento.fecha,
+            evento.ciudad,
+          );
+
+          // Obtener clima para la ubicación del evento
+          if (evento.ciudad) {
+            clima = await this.obtenerClimaParaUbicacion(evento.ciudad);
+          } else {
+            clima = await this.obtenerClima();
+          }
+        }
+      }
+
       // Usar Gemini para seleccionar las mejores prendas para complementar
       const prendasSeleccionadas =
         await this.seleccionarMejoresPrendasConGemini(
@@ -745,6 +774,9 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
           {
             nombre: prendaBase.nombre,
             categoria: createOutfitDto.categoria || 'casual',
+            evento: evento, // ✅ Pasar el evento
+            clima: clima, // ✅ Pasar el clima
+            estacion: estacion, // ✅ Pasar la estación calculada
           },
           3,
         );
@@ -760,13 +792,14 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
       const outfit = this.outfitRepository.create({
         nombre: `Outfit con ${prendaBase.nombre}`,
         categoria: createOutfitDto.categoria || 'casual',
-        estacion: createOutfitDto.estacion || 'todas',
+        estacion: estacion,
         prendas: prendasSeleccionadas,
         usuario,
         imagen: urlImagen,
+        evento: evento,  // ✅ Asociar al evento si existe
       });
 
-      return await this.outfitRepository.save(outfit);
+      return outfit;
     } catch (error) {
       throw new BadRequestException(
         `Error al crear outfit por prenda: ${error.message}`,
@@ -775,14 +808,124 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
   }
 
   /**
-   * Crear outfit basado en un evento
+   * Calcular estación considerando fecha y hemisferio (por ciudad)
+   */
+  private calcularEstacionPorUbicacion(fecha: string, ciudad?: string): string {
+    const fecha_obj = new Date(fecha + 'T00:00:00');
+    const mes = fecha_obj.getMonth() + 1; // 1-12
+
+    // Detectar si es hemisferio sur (aproximado)
+    const ciudadesSur = [
+      'buenos aires',
+      'argentina',
+      'chile',
+      'australia',
+      'sydney',
+      'melbourne',
+      'johannesburgo',
+      'sudáfrica',
+      'brasil',
+      'são paulo',
+      'perú',
+      'lima',
+    ];
+
+    const esSur = ciudad
+      ? ciudadesSur.some((c) => ciudad.toLowerCase().includes(c))
+      : false;
+
+    // Estaciones hemisferio norte
+    if (!esSur) {
+      if (mes >= 3 && mes <= 5) return 'primavera';
+      if (mes >= 6 && mes <= 8) return 'verano';
+      if (mes >= 9 && mes <= 11) return 'otoño';
+      return 'invierno';
+    }
+
+    // Estaciones hemisferio sur (opuesto)
+    if (mes >= 3 && mes <= 5) return 'otoño';
+    if (mes >= 6 && mes <= 8) return 'invierno';
+    if (mes >= 9 && mes <= 11) return 'primavera';
+    return 'verano';
+  }
+
+  /**
+   * Obtener clima predictivo para una ciudad y fecha
+   */
+  private async obtenerClimaParaUbicacion(
+    ciudad: string,
+    fecha?: string,
+  ): Promise<any> {
+    try {
+      console.log(`🌍 Obteniendo clima para ${ciudad}...`);
+
+      // 1️⃣ Obtener coordenadas de la ciudad
+      const geoResponse = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+          ciudad,
+        )}&count=1`,
+      );
+
+      const geoData: any = await geoResponse.json();
+
+      if (!geoData?.results || geoData.results.length === 0) {
+        console.log(`⚠️ Ciudad ${ciudad} no encontrada, usando clima default`);
+        return { temperatura: 20, condicion: 'Desconocido', codigo: 0 };
+      }
+
+      const { latitude, longitude } = geoData.results[0];
+      console.log(`📍 Coordenadas de ${ciudad}: ${latitude}, ${longitude}`);
+
+      // 2️⃣ Obtener clima
+      const climaResponse = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`,
+      );
+
+      const climaData: any = await climaResponse.json();
+      const temperatura = Math.round(climaData.current.temperature_2m);
+      const codigo = climaData.current.weather_code;
+
+      const condicionMap: { [key: number]: string } = {
+        0: 'Despejado',
+        1: 'Mayormente despejado',
+        2: 'Parcialmente nublado',
+        3: 'Nublado',
+        45: 'Niebla',
+        51: 'Lluvia ligera',
+        61: 'Lluvia',
+        80: 'Lluvia fuerte',
+        95: 'Tormenta',
+      };
+
+      const condicion = condicionMap[codigo] || 'Desconocido';
+
+      console.log(`🌡️ Clima de ${ciudad}: ${temperatura}°C, ${condicion}`);
+
+      return { temperatura, condicion, codigo };
+    } catch (error) {
+      console.error(`❌ Error obteniendo clima para ${ciudad}:`, error);
+      return { temperatura: 20, condicion: 'Desconocido', codigo: 0 };
+    }
+  }
+
+  /**
+   * Crear outfit basado en un evento considerando ubicación y estación
    */
   async crearOutfitPorEvento(
     createOutfitDto: CreateOutfitPorEventoDto,
     usuario: User,
   ): Promise<Outfit> {
     try {
-      // Obtener todas las prendas del usuario
+      // 1️⃣ Buscar evento en BD
+      const evento = await this.eventoRepository.findOne({
+        where: { id: createOutfitDto.eventoId, usuario: { id: usuario.id } },
+      });
+
+      if (!evento) {
+        throw new BadRequestException('Evento no encontrado');
+      }
+
+      // 2️⃣ Obtener todas las prendas del usuario
       const prendas = await this.prendaRepository.find({
         where: { usuario: { id: usuario.id } },
       });
@@ -794,39 +937,58 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
       }
 
       console.log(
-        `🎉 === GENERANDO OUTFIT PARA EVENTO: ${createOutfitDto.evento.toUpperCase()} ===`,
+        `🎉 === GENERANDO OUTFIT PARA EVENTO: ${evento.nombre.toUpperCase()} ===`,
       );
 
-      // Usar Gemini para sugerir outfit basado en el evento
+      // 3️⃣ Calcular estación por fecha y ciudad
+      const estacion = this.calcularEstacionPorUbicacion(
+        evento.fecha,
+        evento.ciudad,
+      );
+      console.log(`📅 Estación calculada: ${estacion}`);
+
+      // 4️⃣ Obtener clima para la ubicación del evento
+      let clima: any;
+      if (evento.ciudad) {
+        clima = await this.obtenerClimaParaUbicacion(evento.ciudad);
+      } else {
+        // Default: Alicante
+        clima = await this.obtenerClima();
+      }
+
+      // 5️⃣ Usar Gemini para sugerir outfit considerando evento + clima + estación + ubicación
       const sugerencia = await this.sugerirOutfitPorEvento(
         prendas,
-        createOutfitDto.evento,
+        evento,
+        clima,
+        estacion,
         createOutfitDto.categoria,
       );
 
-      // Seleccionar prendas
+      // 6️⃣ Seleccionar prendas
       const prendasSeleccionadas =
         await this.seleccionarMejoresPrendasConGemini(prendas, sugerencia, 3);
 
-      // Generar imagen del outfit
+      // 7️⃣ Generar imagen del outfit
       const bufferImagen =
         await this.generarImagenOutfitConGemini(prendasSeleccionadas);
 
-      // Subir imagen a Storage
+      // 8️⃣ Subir imagen a Storage
       const urlImagen = await this.subirImagenOutfitAStorage(bufferImagen);
 
-      // Crear outfit
+      // 9️⃣ Crear outfit (SIN guardar en BD)
       const outfit = this.outfitRepository.create({
         nombre: sugerencia.nombre,
         categoria:
           sugerencia.categoria || createOutfitDto.categoria || 'casual',
-        estacion: createOutfitDto.estacion || 'todas',
+        estacion: estacion,
         prendas: prendasSeleccionadas,
         usuario,
         imagen: urlImagen,
+        evento: evento,
       });
 
-      return await this.outfitRepository.save(outfit);
+      return outfit;
     } catch (error) {
       throw new BadRequestException(
         `Error al crear outfit por evento: ${error.message}`,
@@ -835,11 +997,13 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
   }
 
   /**
-   * Sugerir outfit basado en evento con Gemini
+   * Sugerir outfit basado en evento + clima + estación con Gemini
    */
   private async sugerirOutfitPorEvento(
     prendas: Prenda[],
-    evento: string,
+    evento: Evento,
+    clima: any,
+    estacion: string,
     categoriaHint?: string,
   ): Promise<any> {
     try {
@@ -850,15 +1014,30 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
         )
         .join('\n');
 
-      const prompt = `Eres un experto en moda. El usuario quiere crear un outfit para: **${evento}**
+      const prompt = `Eres un experto en moda. El usuario quiere crear un outfit para este evento:
+
+**Evento:** ${evento.nombre}
+**Descripción:** ${evento.descripcion || 'Sin descripción'}
+**Tipo:** ${evento.tipo || 'General'}
+**Ubicación:** ${evento.ciudad || 'Alicante'}
+**Fecha:** ${evento.fecha}
+**Estación:** ${estacion}
+**Clima actual/esperado:** ${clima.temperatura}°C, ${clima.condicion}
 
 Prendas disponibles:
 ${listaPrendas}
 
-Sugiere un outfit que sea apropiado para este evento. Responde con JSON:
+Sugiere un outfit que sea:
+1. Apropiado para el tipo de evento: ${evento.nombre}
+2. Cómodo para el clima: ${clima.temperatura}°C y la estación ${estacion}
+3. Adecuado para la ubicación: ${evento.ciudad || 'Alicante'}
+4. Coherente en colores y estilos
+
+Responde SOLO con JSON (sin explicaciones):
 {
   "nombre": "nombre descriptivo del outfit",
   "categoria": "casual|formal|deporte|elegante",
+  "estacion": "${estacion}",
   "prendas": ["nombre prenda 1", "nombre prenda 2", "nombre prenda 3"]
 }`;
 
@@ -960,7 +1139,7 @@ Sugiere un outfit que sea apropiado para este evento. Responde con JSON:
         imagen: urlImagen,
       });
 
-      return await this.outfitRepository.save(outfit);
+      return outfit;
     } catch (error) {
       throw new BadRequestException(
         `Error al crear outfit por clima: ${error.message}`,
