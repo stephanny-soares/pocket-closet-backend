@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @ApiTags('users')
 @Controller('api/users')
@@ -25,6 +26,37 @@ export class UsersController {
   async obtenerUsuarios() {
     const usuarios = await this.usersService.obtenerUsuarios();
     return { ok: true, usuarios };
+  }
+
+  @Get('perfil')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Obtener perfil del usuario autenticado',
+    description: 'Retorna los datos del perfil del usuario autenticado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Perfil del usuario obtenido exitosamente',
+    example: {
+      ok: true,
+      usuario: {
+        id: 'uuid-1',
+        userName: 'Juan Pérez',
+        email: 'juan@example.com',
+        ciudad: 'Alicante',
+        createdAt: '2025-01-15T10:30:00Z',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'No autorizado - token inválido o expirado',
+  })
+  async obtenerPerfil(@Req() req: Express.Request) {
+    const usuario = (req as any).user;
+    const perfil = await this.usersService.obtenerPerfil(usuario);
+    return { ok: true, usuario: perfil };
   }
 
   @Post()
