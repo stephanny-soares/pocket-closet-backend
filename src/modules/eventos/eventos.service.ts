@@ -16,26 +16,34 @@ export class EventosService {
   /**
    * Crear nuevo evento
    */
-  async crearEvento(
-    createEventoDto: CreateEventoDto,
-    usuario: User,
-  ): Promise<Evento> {
-    try {
-      const evento = this.eventoRepository.create({
-        nombre: createEventoDto.nombre,
-        fecha: createEventoDto.fecha,
-        descripcion: createEventoDto.descripcion,
-        tipo: createEventoDto.tipo,
-        ubicacion: createEventoDto.ubicacion,
-        ciudad: createEventoDto.ciudad,
-        usuario,
-      });
+ async crearEvento(
+  createEventoDto: CreateEventoDto,
+  usuario: User,
+): Promise<Evento> {
+  try {
+    console.log("📋 Datos recibidos en crearEvento:", createEventoDto);
+    
+    const evento = this.eventoRepository.create({
+      nombre: createEventoDto.nombre,
+      fecha: createEventoDto.fecha,
+      descripcion: createEventoDto.descripcion,
+      tipo: createEventoDto.tipo,
+      ubicacion: createEventoDto.ubicacion,
+      ciudad: createEventoDto.ciudad,
+      usuario,
+    });
 
-      return await this.eventoRepository.save(evento);
-    } catch (error) {
-      throw new BadRequestException(`Error al crear evento: ${error.message}`);
-    }
+    console.log("🎉 Evento a guardar:", evento);
+    
+    const resultado = await this.eventoRepository.save(evento);
+    
+    console.log("✅ Evento guardado en BD:", resultado);
+    
+    return resultado;
+  } catch (error) {
+    throw new BadRequestException(`Error al crear evento: ${error.message}`);
   }
+}
 
   /**
    * Obtener todos los eventos del usuario
