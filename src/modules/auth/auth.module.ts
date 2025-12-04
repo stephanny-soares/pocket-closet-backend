@@ -10,6 +10,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy'; 
 import { RedisModule } from 'src/common/redis/redis.module'; // ← AGREGAR
+import { OAuthService } from './services/oauth.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { RedisModule } from 'src/common/redis/redis.module'; // ← AGREGAR
       signOptions: { expiresIn: '1h' },
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, OAuthService],
   controllers: [AuthController],
   exports: [JwtModule, PassportModule, JwtStrategy],
 })
