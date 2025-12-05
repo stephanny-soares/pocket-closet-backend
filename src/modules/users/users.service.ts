@@ -3,6 +3,7 @@ import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from '../../entities/user.entity';
 import * as bcrypt from 'bcrypt';
+import { PerfilDto } from './dto/perfil.dto';
 
 @Injectable()
 export class UsersService {
@@ -30,4 +31,23 @@ export class UsersService {
       fecha_registro: u.createdAt,
     }));
   }
+
+  async obtenerPerfil(usuario: any): Promise<PerfilDto> {
+    const usuarioCompleto = await this.userRepository.findOneBy({
+      id: usuario.sub,
+    });
+
+    if (!usuarioCompleto) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    return {
+      id: usuarioCompleto.id,
+      userName: usuarioCompleto.name,
+      email: usuarioCompleto.email,
+      ciudad: usuarioCompleto.ciudad,
+      createdAt: usuarioCompleto.createdAt,
+    };
+  }
+
 }
