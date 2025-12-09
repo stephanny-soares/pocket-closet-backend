@@ -4,10 +4,12 @@ import {
   Column,
   CreateDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { Prenda } from './prenda.entity';
 import { Outfit } from './outfit.entity';
 import { Evento } from './evento.entity';
+import { UserPreferences } from './user-preferences.entity';
 
 @Entity('users')
 export class User {
@@ -47,4 +49,11 @@ export class User {
 
   @OneToMany(() => Evento, (evento) => evento.usuario, { cascade: true })
   eventos: Evento[];
+
+  // Nueva relación
+  @OneToOne(() => UserPreferences, (preferences) => preferences.user, {
+    nullable: true,
+    cascade: true,
+  })
+  preferences: UserPreferences;
 }
