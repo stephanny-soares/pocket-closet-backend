@@ -116,15 +116,31 @@ export class PrendasService {
     try {
       console.log('🔍 === INICIANDO CLASIFICACIÓN CON GEMINI ===');
 
-      const prompt = `Analiza esta imagen de una prenda de ropa y devuelve SOLO un JSON válido (sin markdown, sin explicaciones).
+      const prompt = `Eres un experto en moda. Analiza esta imagen CUIDADOSAMENTE.
+
+SI la imagen es una prenda de ropa o accesorio de moda (camiseta, pantalón, zapato, bolso, sombrero, etc):
+- Devuelve un JSON con los detalles
+
+SI la imagen NO es una prenda (animal, vehículo, objeto, comida, etc):
+- Devuelve un JSON con "error": true y "mensaje": "No es una prenda de ropa"
+
+SIEMPRE devuelve SOLO JSON válido, sin markdown ni explicaciones:
 
 {
-  "nombre": "color + tipo (ej: Rosa Pantalón)",
+  "error": false,
+  "nombre": "tipo + color (ej: Pantalón Rosa)",
   "tipo": "pantalón",
   "color": "rosa",
   "estacion": "verano",
   "ocasion": "casual",
   "seccion": "inferior"
+}
+
+O si no es válido:
+
+{
+  "error": true,
+  "mensaje": "No es una prenda de ropa"
 }`;
 
       console.log('📤 Enviando a Gemini API...');
@@ -173,17 +189,31 @@ export class PrendasService {
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('❌ No se encontró JSON en la respuesta');
-        console.error('Respuesta completa:', responseText);
-        return this.clasificacionPorDefecto();
+        throw new BadRequestException(
+          'No se pudo procesar la imagen. Por favor, intenta con una imagen más clara.',
+        );
       }
 
       const clasificacion = JSON.parse(jsonMatch[0]);
-      console.log('✅ Clasificación exitosa:', clasificacion);
 
+      // 🔴 VALIDAR SI ES UNA PRENDA
+      if (clasificacion.error === true) {
+        console.error('❌ Imagen rechazada:', clasificacion.mensaje);
+        throw new BadRequestException(
+          clasificacion.mensaje ||
+            'La imagen no contiene una prenda de ropa válida',
+        );
+      }
+
+      console.log('✅ Clasificación exitosa:', clasificacion);
       return clasificacion;
     } catch (error: any) {
       console.error('❌ ERROR en clasificarImagen:', error.message);
-      return this.clasificacionPorDefecto();
+      // No devolver clasificación por defecto, lanzar el error
+      throw new BadRequestException(
+        error.message ||
+          'Error al clasificar la imagen. Asegúrate de que sea una prenda de ropa.',
+      );
     }
   }
 
@@ -209,7 +239,23 @@ export class PrendasService {
     usuario: User,
   ): Promise<Prenda> {
     try {
-      const clasificacion = await this.clasificarImagen(crearPrendaDto.imagen);
+      // La imagen es una URL, convertirla a base64
+      let base64: string;
+
+      if (crearPrendaDto.imagen.startsWith('http')) {
+        // Es una URL - descarga y convierte a base64
+        console.log('📥 Descargando imagen desde URL...');
+        const response = await fetch(crearPrendaDto.imagen);
+        const buffer = await response.arrayBuffer();
+        base64 = Buffer.from(buffer).toString('base64');
+        console.log('✅ Imagen convertida a base64');
+      } else {
+        // Ya es base64
+        base64 = crearPrendaDto.imagen;
+      }
+
+      // Clasificar con Gemini
+      const clasificacion = await this.clasificarImagen(base64);
 
       const prenda = this.prendaRepository.create({
         nombre: crearPrendaDto.nombre || clasificacion.nombre,
