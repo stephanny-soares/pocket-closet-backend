@@ -38,6 +38,12 @@ export class User {
   @Column({ type: 'timestamp', nullable: true, name: 'confirmed_at' })
   confirmed_at: Date | null; // Fecha cuando se confirmó el email
 
+   @Column({ type: 'varchar', length: 255, nullable: true, name: 'reset_token' })
+  reset_token?: string | null; // Token para recuperar contraseña (PC-145)
+
+  @Column({ type: 'timestamp', nullable: true, name: 'reset_token_expires' })
+  reset_token_expires?: Date | null; // Expiración del token de recuperación (PC-146)
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
