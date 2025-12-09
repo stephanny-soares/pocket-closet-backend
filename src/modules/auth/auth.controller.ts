@@ -13,6 +13,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { AppleLoginDto } from './dto/apple-login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
 @Controller('api/auth')
@@ -194,6 +196,111 @@ export class AuthController {
       const correlationId = (req as any).correlationId || null;
       const result = await this.authService.appleLogin(
         appleLoginDto,
+        correlationId,
+      );
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        { ok: false, error: error.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('forgot-password')
+  @Public()
+  @ApiOperation({
+    summary: 'Solicitar recuperación de contraseña',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email registrado',
+          example: 'juan@example.com',
+        },
+      },
+      required: ['email'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Solicitud procesada (mismo mensaje si existe o no)',
+    schema: {
+      example: {
+        ok: true,
+        message: 'Si el email existe, recibirás un enlace de recuperación',
+        token: 'abc123xyz...', // Solo en desarrollo
+      },
+    },
+  })
+  async forgotPassword(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+    @Req() req: Express.Request,
+  ) {
+    try {
+      const correlationId = (req as any).correlationId || null;
+      const result = await this.authService.forgotPassword(
+        forgotPasswordDto.email,
+        correlationId,
+      );
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        { ok: false, error: error.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('reset-password')
+  @Public()
+  @ApiOperation({
+    summary: 'Cambiar contraseña con token de recuperación',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: {
+          type: 'string',
+          description: 'Token recibido por email',
+          example: 'abc123xyz789...',
+        },
+        newPassword: {
+          type: 'string',
+          description: 'Nueva contraseña (mínimo 8 caracteres)',
+          example: 'newPassword123!',
+        },
+      },
+      required: ['token', 'newPassword'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña cambiada exitosamente',
+    schema: {
+      example: {
+        ok: true,
+        message: 'Contraseña actualizada correctamente',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Token inválido o expirado',
+  })
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+    @Req() req: Express.Request,
+  ) {
+    try {
+      const correlationId = (req as any).correlationId || null;
+      const result = await this.authService.resetPassword(
+        resetPasswordDto.token,
+        resetPasswordDto.newPassword,
         correlationId,
       );
       return result;

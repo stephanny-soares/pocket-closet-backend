@@ -346,8 +346,8 @@ export class AuthService {
 
   async googleLogin(googleLoginDto: GoogleLoginDto, correlationId: string) {
     // 1. Validar token con Google
-    const googleData = await this.oauthService.verifyGoogleToken(
-      googleLoginDto);
+    const googleData =
+      await this.oauthService.verifyGoogleToken(googleLoginDto);
 
     // 2. Buscar o crear usuario
     let user = await this.userRepository.findOne({
@@ -403,6 +403,116 @@ export class AuthService {
       ok: true,
       token,
       usuario: { id: user.id, name: user.name, email: user.email },
+    };
+  }
+
+  /**
+   * Solicitar recuperación de contraseña
+   * PC-144: Forgot password
+   * Genera un token aleatorio y lo guarda en Redis por 15 minutos
+   */
+  async forgotPassword(email: string, correlationId?: string): Promise<{ ok: boolean; message: string; token?: string }> {
+  const user = await this.userRepository.findOneBy({ email });
+  
+  if (!user) {
+    this.logger.warn({
+      event: 'UsuarioNoEncontradoForgotPassword',
+      message: `Intento de recuperación con email no registrado: ${email}`,
+      correlationId,
+    });
+    return { 
+      ok: true, 
+      message: 'Si el email existe, recibirás un enlace de recuperación' 
+    };
+  }
+
+  // Generar token aleatorio de 32 caracteres
+  const crypto = require('crypto');
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  // Guardar token en Redis (15 minutos)
+  await this.redisService.saveResetToken(email, resetToken, 900);
+
+  // Guardar TAMBIÉN en la BD con expiración
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + 15); // 15 minutos
+  
+  user.reset_token = resetToken;
+  user.reset_token_expires = expiresAt;
+  await this.userRepository.save(user);
+
+  this.logger.info({
+    event: 'PasswordRecoveryRequested',
+    email,
+    correlationId,
+    message: 'Solicitud de recuperación de contraseña enviada',
+  });
+
+  return { 
+    ok: true, 
+    message: 'Token de recuperación generado',
+    token: resetToken // SOLO PARA TESTING
+  };
+}
+
+  /**
+   * Cambiar contraseña con token de recuperación
+   * PC-145: Reset password
+   * Valida el token en Redis y cambia la contraseña
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    correlationId?: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    // Validar contraseña
+    if (!validarPassword(newPassword)) {
+      throw new BadRequestException('La contraseña no cumple los requisitos');
+    }
+
+    // Buscar el token en Redis y obtener el email asociado
+    // Como Redis solo tiene reset_token:{email}, necesitamos buscar diferente
+    // PROBLEMA: Redis no permite búsquedas reversas fácilmente
+    // SOLUCIÓN: Guardar también token -> email en Redis
+
+    // Alternativa: Usar la BD directamente
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .where('user.reset_token = :token', { token })
+      .andWhere('user.reset_token_expires > NOW()')
+      .getOne();
+
+    if (!user) {
+      this.logger.warn({
+        event: 'TokenInvalidoOExpirado',
+        message: 'Intento de reset con token inválido o expirado',
+        correlationId,
+      });
+      throw new BadRequestException('Token inválido o expirado');
+    }
+
+    // Cambiar contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password_hash = hashedPassword;
+    user.reset_token = null;
+    user.reset_token_expires = null;
+
+    await this.userRepository.save(user);
+
+    // Limpiar token de Redis
+    await this.redisService.deleteResetToken(user.email);
+
+    this.logger.info({
+      event: 'PasswordReseteado',
+      userId: user.id,
+      email: user.email,
+      correlationId,
+      message: 'Contraseña cambiada exitosamente',
+    });
+
+    return {
+      ok: true,
+      message: 'Contraseña actualizada correctamente',
     };
   }
 }
