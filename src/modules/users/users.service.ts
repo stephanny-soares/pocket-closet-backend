@@ -34,7 +34,7 @@ export class UsersService {
 
   async obtenerPerfil(usuario: any): Promise<PerfilDto> {
     const usuarioCompleto = await this.userRepository.findOneBy({
-      id: usuario.sub,
+      id: usuario.id,
     });
 
     if (!usuarioCompleto) {
