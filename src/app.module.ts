@@ -14,6 +14,7 @@ import { AuditoriaUsuario } from './entities/auditoria-usuario.entity';
 import { OutfitsModule } from './modules/outfits/outfits.module';
 import { EventosModule } from './modules/eventos/eventos.module';
 import { UtilsModule } from './modules/utils/utils.module';
+import { UserPreferences } from './entities/user-preferences.entity';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { UtilsModule } from './modules/utils/utils.module';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [User, Prenda, AuditoriaUsuario],
+      entities: [User, Prenda, AuditoriaUsuario, UserPreferences],
       autoLoadEntities: true,
       synchronize: true, // crea las tablas automáticamente según entidades (solo para desarrollo, no usar en producción).
     }),
