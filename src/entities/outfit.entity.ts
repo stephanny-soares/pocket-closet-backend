@@ -41,9 +41,12 @@ export class Outfit {
   @ManyToOne(() => User, (user) => user.outfits, { onDelete: 'CASCADE' })
   usuario: User;
 
-  @ManyToOne(() => Evento, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => Evento, evento => evento.outfits, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'evento_id' })
-  evento?: Evento;
+  evento?: Evento | null;
+
+  @Column({ name: 'evento_id', nullable: true })
+  eventoId?: string;
 
   @CreateDateColumn()
   createdAt: Date;

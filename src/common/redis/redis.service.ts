@@ -74,4 +74,35 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async del(key: string): Promise<void> {
     await this.client.del(key);
   }
+
+  /**
+   * Guardar token de recuperación de contraseña
+   * PC-145: Reset password
+   */
+  async saveResetToken(
+    email: string,
+    token: string,
+    expiresInSeconds: number = 900, // 15 minutos por defecto
+  ): Promise<void> {
+    const key = `reset_token:${email}`;
+    await this.setEx(key, expiresInSeconds, token);
+  }
+
+  /**
+   * Obtener token de recuperación de contraseña
+   * PC-145: Reset password
+   */
+  async getResetToken(email: string): Promise<string | null> {
+    const key = `reset_token:${email}`;
+    return await this.get(key);
+  }
+
+  /**
+   * Eliminar token de recuperación de contraseña
+   * PC-145: Reset password
+   */
+  async deleteResetToken(email: string): Promise<void> {
+    const key = `reset_token:${email}`;
+    await this.del(key);
+  }
 }

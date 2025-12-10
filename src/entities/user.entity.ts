@@ -4,10 +4,12 @@ import {
   Column,
   CreateDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { Prenda } from './prenda.entity';
 import { Outfit } from './outfit.entity';
 import { Evento } from './evento.entity';
+import { UserPreferences } from './user-preferences.entity';
 
 @Entity('users')
 export class User {
@@ -36,6 +38,12 @@ export class User {
   @Column({ type: 'timestamp', nullable: true, name: 'confirmed_at' })
   confirmed_at: Date | null; // Fecha cuando se confirmó el email
 
+   @Column({ type: 'varchar', length: 255, nullable: true, name: 'reset_token' })
+  reset_token?: string | null; // Token para recuperar contraseña (PC-145)
+
+  @Column({ type: 'timestamp', nullable: true, name: 'reset_token_expires' })
+  reset_token_expires?: Date | null; // Expiración del token de recuperación (PC-146)
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -47,4 +55,11 @@ export class User {
 
   @OneToMany(() => Evento, (evento) => evento.usuario, { cascade: true })
   eventos: Evento[];
+
+  // Nueva relación
+  @OneToOne(() => UserPreferences, (preferences) => preferences.user, {
+    nullable: true,
+    cascade: true,
+  })
+  preferences: UserPreferences;
 }
