@@ -5,7 +5,8 @@ import * as path from 'path';
 @Injectable()
 export class StorageService {
   private storage: Storage;
-  private bucketName: string = process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'pocketcloset-prendas';
+  private bucketName: string =
+    process.env.GOOGLE_CLOUD_STORAGE_BUCKET || 'pocketcloset-prendas';
 
   constructor() {
     this.storage = new Storage({
@@ -37,25 +38,85 @@ export class StorageService {
         },
       });
 
-
+      // ✅ AGREGAR ESTO: Hacer público
+      await file.makePublic();
       // Generar URL pública
-      //const urlPublica = `https://storage.googleapis.com/${this.bucketName}/${nombreArchivo}`;
+      const urlPublica = `https://storage.googleapis.com/${this.bucketName}/${nombreArchivo}`;
 
-      const [urlFirmada] = await file.getSignedUrl({
+      /*const [urlFirmada] = await file.getSignedUrl({
       version: 'v4',
       action: 'read',
       expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 días
-      });
-// ✅ URL con firma temporal → Google Vision puede acceder
+      });*/
+      // ✅ URL con firma temporal → Google Vision puede acceder
 
-      console.log(`Archivo subido: ${urlFirmada}`);
-      return urlFirmada;
+      console.log(`Archivo subido: ${urlPublica}`);
+      return urlPublica;
     } catch (error) {
       console.error('Error subiendo archivo a Storage:', error);
       throw error;
     }
   }
-  
+
+  /**
+   * Subir avatar del usuario (sobrescribe si ya existe)
+   * Nombre: avatars/{userId}
+   */
+  async subirAvatar(
+    archivo: Express.Multer.File,
+    userId: string,
+  ): Promise<string> {
+    try {
+      const bucket = this.storage.bucket(this.bucketName);
+
+      // Nombre FIJO para cada usuario (sobrescribe si existe)
+      const nombreArchivo = `avatars/${userId}-${Date.now()}`;
+      const file = bucket.file(nombreArchivo);
+
+      // Subir archivo
+      await file.save(archivo.buffer, {
+        metadata: {
+          contentType: archivo.mimetype,
+          cacheControl: 'public, max-age=31536000', // 1 año
+        },
+      });
+
+      // ✅ AGREGAR ESTO: Hacer público
+      await file.makePublic();
+
+      // ✅ Generar URL pública (nunca expira)
+      const urlPublica = `https://storage.googleapis.com/${this.bucketName}/${nombreArchivo}`;
+
+      /* // Generar signed URL (válida 1 año)
+      const [urlFirmada] = await file.getSignedUrl({
+        version: 'v4',
+        action: 'read',
+        expires: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 año
+      });
+      */
+      console.log(`Avatar subido: ${urlPublica}`);
+      return urlPublica;
+    } catch (error) {
+      console.error('Error subiendo avatar a Storage:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Eliminar avatar del usuario
+   */
+  async eliminarAvatar(userId: string): Promise<void> {
+    try {
+      const bucket = this.storage.bucket(this.bucketName);
+      const nombreArchivo = `avatars/${userId}`;
+
+      await bucket.file(nombreArchivo).delete();
+      console.log(`Avatar eliminado: ${nombreArchivo}`);
+    } catch (error) {
+      console.error('Error eliminando avatar:', error);
+      // No lanzar error, solo loguear
+    }
+  }
 
   /**
    * Leer archivo de GCS como Base64 (para Vision API)
@@ -63,7 +124,9 @@ export class StorageService {
   async leerArchivoComoBase64(urlArchivo: string): Promise<string> {
     try {
       // Extraer el nombre del archivo de la URL
-      const nombreArchivo = urlArchivo.split(`/${this.bucketName}/`)[1]?.split('?')[0];
+      const nombreArchivo = urlArchivo
+        .split(`/${this.bucketName}/`)[1]
+        ?.split('?')[0];
 
       if (!nombreArchivo) {
         throw new Error('No se pudo extraer el nombre del archivo');
@@ -71,10 +134,12 @@ export class StorageService {
 
       const bucket = this.storage.bucket(this.bucketName);
       const [contenido] = await bucket.file(nombreArchivo).download();
-      
+
       const base64 = contenido.toString('base64');
-      console.log(`✅ Base64 generado: ${nombreArchivo} (${base64.length} chars)`);
-      
+      console.log(
+        `✅ Base64 generado: ${nombreArchivo} (${base64.length} chars)`,
+      );
+
       return base64;
     } catch (error) {
       console.error('❌ Error leyendo archivo como Base64:', error);

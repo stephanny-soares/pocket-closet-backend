@@ -7,6 +7,8 @@ import {
   UseGuards,
   Req,
   BadRequestException,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import {
@@ -15,16 +17,22 @@ import {
   ApiResponse,
   ApiBody,
   ApiBearerAuth,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CreatePreferencesDto } from './dto/create-preferences.dto';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { UpdatePerfilDto } from './dto/update-perfil.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { StorageService } from '../../common/services/storage.service';
 
 @ApiTags('users')
 @Controller('api/users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -62,6 +70,7 @@ export class UsersController {
         id: 'uuid-1',
         userName: 'Juan Pérez',
         email: 'juan@example.com',
+        avatar: 'https://storage.googleapis.com/...',
         ciudad: 'Alicante',
         createdAt: '2025-01-15T10:30:00Z',
       },
@@ -77,28 +86,21 @@ export class UsersController {
     return { ok: true, usuario: perfil };
   }
 
+   /**
+   * PUT /api/users/perfil
+   * Actualizar perfil del usuario (nombre, ciudad y/o avatar)
+   * Acepta multipart/form-data para manejar archivo + JSON
+   */
+
   @Put('perfil')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('avatar'))
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Actualizar perfil del usuario',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description: 'Nombre completo del usuario',
-          example: 'Juan Pérez',
-        },
-        ciudad: {
-          type: 'string',
-          description: 'Ciudad de residencia',
-          example: 'Buenos Aires',
-        },
-      },
-    },
+    description:
+      'Actualiza nombre, ciudad y/o avatar del usuario. Todos los campos son opcionales.',
   })
   @ApiResponse({
     status: 200,
@@ -110,6 +112,7 @@ export class UsersController {
           id: 'uuid-1',
           userName: 'Juan Pérez',
           email: 'juan@example.com',
+          avatar: 'https://storage.googleapis.com/...',
           ciudad: 'Buenos Aires',
           createdAt: '2025-01-15T10:30:00Z',
         },
@@ -127,6 +130,7 @@ export class UsersController {
   async actualizarPerfil(
     @Req() req: Express.Request,
     @Body() updatePerfilDto: UpdatePerfilDto,
+    @UploadedFile() archivo?: Express.Multer.File,
   ) {
     const usuario = (req as any).user;
 
@@ -134,13 +138,59 @@ export class UsersController {
       throw new BadRequestException('Usuario no autenticado');
     }
 
-    const perfilActualizado = await this.usersService.actualizarPerfil(
-      usuario.id,
-      updatePerfilDto,
-    );
+    try {
+      let perfilActualizado = await this.usersService.obtenerPerfil(usuario);
 
-    return { ok: true, usuario: perfilActualizado };
+      // Actualizar datos de perfil (name, ciudad)
+      if (updatePerfilDto.name || updatePerfilDto.ciudad) {
+        perfilActualizado = await this.usersService.actualizarPerfil(
+          usuario.id,
+          updatePerfilDto,
+        );
+      }
+
+      // Actualizar avatar si viene archivo
+      if (archivo) {
+        // Validar que sea imagen
+        if (!archivo.mimetype.startsWith('image/')) {
+          throw new BadRequestException('El archivo debe ser una imagen');
+        }
+
+        // Validar tamaño (máx 5MB)
+        if (archivo.size > 50 * 1024 * 1024) {
+          throw new BadRequestException('La imagen no debe superar 50MB');
+        }
+
+        const userId = usuario.id;
+
+        // Eliminar avatar anterior si existe
+        if (perfilActualizado.avatar) {
+          await this.storageService.eliminarAvatar(userId);
+        }
+
+        // Subir nuevo avatar a GCS
+        const urlAvatar = await this.storageService.subirAvatar(
+          archivo,
+          userId,
+        );
+
+        // Actualizar avatar en BD
+        perfilActualizado = await this.usersService.actualizarAvatar(
+          userId,
+          urlAvatar,
+        );
+      }
+
+      console.log('🔍 Perfil actualizado:', perfilActualizado); // ← AGREGAR
+
+      return { ok: true, usuario: perfilActualizado };
+    } catch (error) {
+      throw new BadRequestException(
+        `Error al actualizar perfil: ${error.message}`,
+      );
+    }
   }
+
 
   @Post()
   @ApiOperation({
