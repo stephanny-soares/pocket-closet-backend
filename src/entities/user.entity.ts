@@ -44,6 +44,9 @@ export class User {
   @Column({ type: 'timestamp', nullable: true, name: 'reset_token_expires' })
   reset_token_expires?: Date | null; // Expiración del token de recuperación (PC-146)
 
+   @Column({ type: 'varchar', nullable: true, name: 'avatar' })
+  avatar?: string | null; // URL signed de GCS: https://storage.googleapis.com/.../avatars/{id}?...
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

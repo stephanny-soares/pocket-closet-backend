@@ -56,6 +56,7 @@ export class UsersService {
       id: usuarioCompleto.id,
       userName: usuarioCompleto.name,
       email: usuarioCompleto.email,
+      avatar: usuarioCompleto.avatar,
       ciudad: usuarioCompleto.ciudad,
       createdAt: usuarioCompleto.createdAt,
     };
@@ -85,6 +86,34 @@ export class UsersService {
     id: updated.id,
     userName: updated.name,
     email: updated.email,
+    ciudad: updated.ciudad,
+    createdAt: updated.createdAt,
+  };
+}
+
+/**
+ * Actualizar avatar del usuario
+ */
+async actualizarAvatar(userId: string, urlAvatar: string): Promise<PerfilDto> {
+  const usuario = await this.userRepository.findOneBy({ id: userId });
+
+  console.log('🔍 Guardando avatar para usuario:', userId); 
+  console.log('🔍 URL a guardar:', urlAvatar); 
+
+  if (!usuario) {
+    throw new NotFoundException('Usuario no encontrado');
+  }
+
+  usuario.avatar = urlAvatar;
+  const updated = await this.userRepository.save(usuario);
+
+   console.log('🔍 Avatar guardado en BD:', updated.avatar); // ← AGREGAR
+
+  return {
+    id: updated.id,
+    userName: updated.name,
+    email: updated.email,
+    avatar: updated.avatar,
     ciudad: updated.ciudad,
     createdAt: updated.createdAt,
   };
