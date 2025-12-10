@@ -19,4 +19,9 @@ export class CreateOutfitDto {
   @IsArray()
   @IsUUID('4', { each: true })
   prendasIds: string[]; // IDs de las prendas que conforman el outfit
+
+  @IsOptional()
+  @IsUUID()
+  eventoId?: string;
+
 }
