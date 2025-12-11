@@ -10,6 +10,7 @@ import { Prenda } from './prenda.entity';
 import { Outfit } from './outfit.entity';
 import { Evento } from './evento.entity';
 import { UserPreferences } from './user-preferences.entity';
+import { Viaje } from './viaje.entity';
 
 @Entity('users')
 export class User {
@@ -58,6 +59,9 @@ export class User {
 
   @OneToMany(() => Evento, (evento) => evento.usuario, { cascade: true })
   eventos: Evento[];
+
+   @OneToMany(() => Viaje, (viaje) => viaje.usuario, { cascade: true })
+  viajes: Viaje[];
 
   // Nueva relación
   @OneToOne(() => UserPreferences, (preferences) => preferences.user, {
