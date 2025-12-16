@@ -166,6 +166,14 @@ export class PrendasController {
     return { ok: true, prendas };
   }
 
+  @Get('count')
+  async contar(@Req() req: Express.Request) {
+    const usuario = (req as any).user;
+    const total = await this.prendasService.contarPrendas(usuario);
+    return { ok: true, total };
+  }
+
+
   @Get(':id')
   @ApiParam({
     name: 'id',
