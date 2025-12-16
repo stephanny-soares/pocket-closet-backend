@@ -11,7 +11,9 @@ export class StorageService {
   constructor() {
     this.storage = new Storage({
       projectId: process.env.GOOGLE_CLOUD_VISION_PROJECT_ID,
-      keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+      credentials: JSON.parse(
+        process.env.GOOGLE_APPLICATION_CREDENTIALS as string,
+      ),
     });
   }
 
