@@ -582,6 +582,14 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
           'Una o más prendas no existen o no pertenecen al usuario',
         );
       }
+      let evento: Evento | null = null;
+
+      if (createOutfitDto.eventoId) {
+        evento = await this.eventoRepository.findOne({
+          where: { id: createOutfitDto.eventoId, usuario: { id: usuario.id }},
+        });
+      }
+
 
       // Crear outfit
       const outfit = this.outfitRepository.create({
@@ -591,6 +599,7 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
         estacion: createOutfitDto.estacion,
         prendas: prendas,
         usuario,
+        evento,
       });
 
       return await this.outfitRepository.save(outfit);
@@ -605,7 +614,7 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
   async obtenerOutfits(usuario: User): Promise<Outfit[]> {
     return await this.outfitRepository.find({
       where: { usuario: { id: usuario.id } },
-      relations: ['prendas'],
+      relations: ['prendas', 'evento'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -616,7 +625,7 @@ Responde SOLO con un JSON array con los nombres EXACTOS de las prendas:
   async obtenerOutfitPorId(id: string, usuario: User): Promise<Outfit> {
     const outfit = await this.outfitRepository.findOne({
       where: { id, usuario: { id: usuario.id } },
-      relations: ['prendas'],
+      relations: ['prendas', 'evento'],
     });
 
     if (!outfit) {

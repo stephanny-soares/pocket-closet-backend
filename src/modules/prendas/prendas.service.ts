@@ -339,4 +339,11 @@ O si no es válido:
     const prenda = await this.obtenerPrendaPorId(id, usuario);
     await this.prendaRepository.remove(prenda);
   }
+  //Contar prendas
+  async contarPrendas(usuario: User): Promise<number> {
+    return this.prendaRepository.count({
+      where: { usuario: { id: usuario.id } },
+    });
+  }
+
 }

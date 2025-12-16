@@ -5,8 +5,10 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany, 
 } from 'typeorm';
 import { User } from './user.entity';
+import { Outfit } from './outfit.entity';
 
 @Entity('eventos')
 export class Evento {
@@ -24,6 +26,9 @@ export class Evento {
 
   @ManyToOne(() => User, (user) => user.eventos, { onDelete: 'CASCADE' })
   usuario: User;
+  @OneToMany(() => Outfit, outfit => outfit.evento)
+  outfits: Outfit[];
+
 
   @Column({ nullable: true })
   tipo?: string; // "boda", "cumpleaños", "trabajo", "casual", etc.

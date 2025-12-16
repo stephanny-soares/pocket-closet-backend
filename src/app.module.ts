@@ -15,6 +15,7 @@ import { OutfitsModule } from './modules/outfits/outfits.module';
 import { EventosModule } from './modules/eventos/eventos.module';
 import { UtilsModule } from './modules/utils/utils.module';
 import { UserPreferences } from './entities/user-preferences.entity';
+import { ViajesModule } from './modules/viajes/viajes.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UserPreferences } from './entities/user-preferences.entity';
     OutfitsModule,
     EventosModule,
     UtilsModule,
+    ViajesModule,
   ],
   controllers: [AppController],
   //providers: [LoggerService], // 👈 Inyectamos LoggerService aquí para usarlo en los middlewares y filtros
